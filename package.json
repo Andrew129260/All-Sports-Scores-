@@ -1,0 +1,151 @@
+{
+    "author": "Catalyst Studios",
+    "dependencies": {},
+    "keywords": [
+        "pebble-app",
+        "sports"
+    ],
+    "name": "pebble-sports",
+    "pebble": {
+        "capabilities": [
+            "configurable"
+        ],
+        "displayName": "All Sports Scores",
+        "enableMultiJS": true,
+        "messageKeys": [
+            "READY",
+            "REQUEST_ID",
+            "LOAD_GAMES",
+            "UPDATE_GAME_ID",
+            "UPDATE_GAME_SPORT",
+            "ADD_FAVORITE_SPORT",
+            "ADD_FAVORITE_TEAM_ID",
+            "SEND_GAME_LIST",
+            "SEND_GAME_UPDATE",
+            "SEND_GAME_ID",
+            "SEND_GAME_SPORT",
+            "SEND_GAME_TEAM_1_NAME",
+            "SEND_GAME_TEAM_2_NAME",
+            "SEND_GAME_TEAM_1_ID",
+            "SEND_GAME_TEAM_2_ID",
+            "SEND_GAME_TEAM_1_RECORD",
+            "SEND_GAME_TEAM_2_RECORD",
+            "SEND_GAME_TEAM_1_FAVORITE",
+            "SEND_GAME_TEAM_2_FAVORITE",
+            "SEND_GAME_TEAM_1_SCORE",
+            "SEND_GAME_TEAM_2_SCORE",
+            "SEND_GAME_POSSESSION",
+            "SEND_GAME_TIME",
+            "SEND_GAME_DETAILS",
+            "CONFIRM_FAVORITE",
+            "CONFIG_LEAGUES",
+            "CONFIG_SHOW_RECORDS"
+        ],
+        "projectType": "native",
+        "resources": {
+            "media": [
+                {
+                    "file": "images/Baseball-16.png",
+                    "name": "BASEBALL_16",
+                    "type": "png"
+                },
+                {
+                    "file": "images/Baseball-25.png",
+                    "name": "BASEBALL_25",
+                    "type": "png"
+                },
+                {
+                    "file": "images/Basketball-16.png",
+                    "name": "BASKETBALL_16",
+                    "type": "png"
+                },
+                {
+                    "file": "images/Basketball-25.png",
+                    "name": "BASKETBALL_25",
+                    "type": "png"
+                },
+                {
+                    "file": "images/Error-25.png",
+                    "name": "ERROR_25",
+                    "type": "png"
+                },
+                {
+                    "file": "images/Football-16.png",
+                    "name": "FOOTBALL_16",
+                    "type": "png"
+                },
+                {
+                    "file": "images/Football-25.png",
+                    "name": "FOOTBALL_25",
+                    "type": "png"
+                },
+                {
+                    "file": "images/Hockey-16.png",
+                    "name": "HOCKEY_16",
+                    "type": "png"
+                },
+                {
+                    "file": "images/Hockey-25.png",
+                    "name": "HOCKEY_25",
+                    "type": "png"
+                },
+                {
+                    "file": "images/Soccer-16.png",
+                    "name": "SOCCER_16",
+                    "type": "png"
+                },
+                {
+                    "file": "images/Soccer-25.png",
+                    "name": "SOCCER_25",
+                    "type": "png"
+                },
+                {
+                    "file": "images/Star-16.png",
+                    "name": "STAR_16",
+                    "type": "png"
+                },
+                {
+                    "file": "images/Star-25.png",
+                    "name": "STAR_25",
+                    "type": "png"
+                },
+                {
+                    "file": "data/vector/confirm_sequence.pdc",
+                    "name": "ANIM_CONFIRM",
+                    "type": "raw"
+                },
+                {
+                    "file": "data/vector/deleted_sequence.pdc",
+                    "name": "ANIM_DELETED",
+                    "type": "raw"
+                },
+                {
+                    "file": "data/vector/error-80.pdc",
+                    "name": "ERROR_80",
+                    "type": "raw"
+                },
+                {
+                    "file": "images/Generic-25.png",
+                    "menuIcon": true,
+                    "name": "GENERIC_25",
+                    "type": "png"
+                }
+            ]
+        },
+        "sdkVersion": "3",
+        "targetPlatforms": [
+            "aplite",
+            "basalt",
+            "chalk",
+            "diorite",
+            "emery",
+            "gabbro",
+            "flint"
+        ],
+        "uuid": "54dd282f-3cb0-4e13-9cb4-60394f40e674",
+        "watchapp": {
+            "watchface": false
+        }
+    },
+    "version": "2.0.0"
+}
