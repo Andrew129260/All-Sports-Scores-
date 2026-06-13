@@ -3,26 +3,29 @@ const sports = {
     NFL: 1,
     MLB: 2,
     NHL: 3,
-    NBA: 4
-}
+    NBA: 4,
+    MLS: 5,
+    RUGBY: 6,
+    CRICKET: 7
+};
 
 const possession = {
     TEAM1: 0,
     TEAM2: 1,
     NONE: 2
-}
+};
 
 const gameslistdata = {
     LIST_ITEM: 0,
     LAST_LIST_ITEM: 1,
     NO_GAMES: 2,
     NETWORK_ERROR: 3
-}
+};
 
 const updategamedata = {
     UPDATE_GAME: 0,
     NETWORK_ERROR: 1
-}
+};
 
 function Team(name, id, record) {
     this.name = name;
@@ -30,7 +33,7 @@ function Team(name, id, record) {
     this.record = record;
 }
 
-function Game (id, sport, team1, score1, team2, score2, possession, time, details) {
+function Game(id, sport, team1, score1, team2, score2, possession, time, details, broadcast) {
     this.id = id;
     this.sport = sport;
     this.team1 = team1;
@@ -40,9 +43,10 @@ function Game (id, sport, team1, score1, team2, score2, possession, time, detail
     this.possession = possession;
     this.time = time;
     this.details = details;
+    this.broadcast = broadcast;
     this.isFavorite = function(favoriteTeam) {
         return favoriteTeam.sport == sport && (favoriteTeam.teamID == team1.id || favoriteTeam.teamID == team2.id);
-    }
+    };
 }
 
 function FavoriteTeam(sport, teamID) {
@@ -58,4 +62,4 @@ module.exports = {
     Team: Team,
     Game: Game,
     FavoriteTeam: FavoriteTeam
-}
+};

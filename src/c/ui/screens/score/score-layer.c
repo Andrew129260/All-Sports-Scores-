@@ -8,7 +8,26 @@ static void score_update_proc(Layer *layer, GContext *ctx) {
 
     GRect layer_bounds = layer_get_bounds(layer);
 
-    GFont font_score = fonts_get_system_font(has_long_score ? FONT_KEY_LECO_36_BOLD_NUMBERS : FONT_KEY_LECO_42_NUMBERS);
+    // ==========================================
+    // PLATFORM SPECIFIC LAYOUT SCALING
+    // ==========================================
+    GFont font_score;
+    int score_y;
+    int record_score_y;
+
+    #if PBL_DISPLAY_WIDTH > 144
+        // Time 2 (Emery) - 200px Wide Displays
+        font_score = fonts_get_system_font(has_long_score ? FONT_KEY_LECO_36_BOLD_NUMBERS : FONT_KEY_LECO_42_NUMBERS);
+        score_y = has_long_score ? 4 : 0;
+        record_score_y = has_long_score ? 11 : 7;
+    #else
+        // Pebble Classic, Time, Time Steel - 144px Wide Displays
+        // We use Gothic 24 here for long scores so 5-character strings (like 241/4) never word-wrap!
+        font_score = fonts_get_system_font(has_long_score ? FONT_KEY_GOTHIC_24_BOLD : FONT_KEY_LECO_32_BOLD_NUMBERS);
+        score_y = has_long_score ? 8 : 4;
+        record_score_y = has_long_score ? 15 : 11;
+    #endif
+
     GFont font_team = fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
     GFont font_record = fonts_get_system_font(FONT_KEY_GOTHIC_14);
 
@@ -22,6 +41,7 @@ static void score_update_proc(Layer *layer, GContext *ctx) {
     int right_x = separator_bounds.origin.x + separator_bounds.size.w;
 
     bool record_showing = clay_settings.show_record == ShowRecordAlways || (clay_settings.show_record == ShowRecordFinalOnly && strcmp(game->time, "Final")==0);
+    
     if (record_showing) {
         // Record 1 (Manually centered, left-aligned)
         GSize rec1_sz = graphics_text_layout_get_content_size(game->team1.record, font_record, GRect(0, 0, half_w, 14), GTextOverflowModeWordWrap, GTextAlignmentLeft);
@@ -34,16 +54,17 @@ static void score_update_proc(Layer *layer, GContext *ctx) {
         graphics_draw_text(ctx, game->team2.record, font_record, rec2_bnds, GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
     }
 
-    int score_y = record_showing ? (has_long_score ? 11 : 7) : (has_long_score ? 4 : 0);
+    int final_score_y = record_showing ? record_score_y : score_y;
+    int score_height = has_long_score ? 30 : 42; 
     
     // Score 1 (Manually centered, left-aligned)
-    GSize sc1_sz = graphics_text_layout_get_content_size(game->team1.score, font_score, GRect(0, 0, half_w, 42), GTextOverflowModeWordWrap, GTextAlignmentLeft);
-    GRect sc1_bnds = GRect((half_w / 2) - (sc1_sz.w / 2), score_y, sc1_sz.w + 10, 42);
+    GSize sc1_sz = graphics_text_layout_get_content_size(game->team1.score, font_score, GRect(0, 0, half_w, score_height), GTextOverflowModeWordWrap, GTextAlignmentLeft);
+    GRect sc1_bnds = GRect((half_w / 2) - (sc1_sz.w / 2), final_score_y, sc1_sz.w + 10, score_height);
     graphics_draw_text(ctx, game->team1.score, font_score, sc1_bnds, GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
 
     // Score 2 (Manually centered, left-aligned)
-    GSize sc2_sz = graphics_text_layout_get_content_size(game->team2.score, font_score, GRect(0, 0, half_w, 42), GTextOverflowModeWordWrap, GTextAlignmentLeft);
-    GRect sc2_bnds = GRect(right_x + (half_w / 2) - (sc2_sz.w / 2), score_y, sc2_sz.w + 10, 42);
+    GSize sc2_sz = graphics_text_layout_get_content_size(game->team2.score, font_score, GRect(0, 0, half_w, score_height), GTextOverflowModeWordWrap, GTextAlignmentLeft);
+    GRect sc2_bnds = GRect(right_x + (half_w / 2) - (sc2_sz.w / 2), final_score_y, sc2_sz.w + 10, score_height);
     graphics_draw_text(ctx, game->team2.score, font_score, sc2_bnds, GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
 
     int possession_offset = 5;

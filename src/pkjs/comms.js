@@ -38,17 +38,16 @@ function sendGameListItem(requestID, games, index) {
         'SEND_GAME_POSSESSION': game.possession,
         'SEND_GAME_TIME': game.time,
         'SEND_GAME_DETAILS': game.details,
+        'SEND_GAME_BROADCAST': game.broadcast || "" // Added broadcast string
     }
 
     console.log("sending item ", index);
 
     Pebble.sendAppMessage(dict, function () {
         console.log("message success");
-        // Use success callback to increment index
         index++;
 
         if (index < games.length) {
-            // Send next item
             sendGameListItem(requestID, games, index);
         } else {
             console.log('Last item sent!');
@@ -110,11 +109,13 @@ function sendGameUpdate(requestID, game) {
         'SEND_GAME_POSSESSION': game.possession,
         'SEND_GAME_TIME': game.time,
         'SEND_GAME_DETAILS': game.details,
+        'SEND_GAME_BROADCAST': game.broadcast || "" // Added broadcast string
     }
     Pebble.sendAppMessage(dict, function () {
         console.log("message success");
     }, function () {
-        console.log('Item transmission failed at index: ' + index);
+        // Fixed: Removed the undefined 'index' variable that would crash the JS
+        console.log('Item transmission failed'); 
     });
 }
 

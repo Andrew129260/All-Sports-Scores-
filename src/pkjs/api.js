@@ -3,9 +3,6 @@ const storage = require('./storage');
 const utils = require('./utils');
 const mock = require('./mock');
 
-// to get team schedule only, url is https://site.api.espn.com/apis/site/v2/sports/:sport/:league/teams/:id/schedule
-// to get more info on specific game, url is https://site.api.espn.com/apis/site/v2/sports/:sport/:league/summary?event=:id
-
 const DEBUG_MOCK = false;
 
 function getGames(sport, onLoad, onError) {
@@ -46,7 +43,7 @@ function getFavoriteGames(favorites, onLoad, onError) {
                     onLoad(favoriteGames);
                 }
             },
-            onError // for now, an error in any of the requests should just send none of the games
+            onError 
         )
     })
 }
@@ -58,6 +55,9 @@ function getEndpointForSport(sport) {
         case models.sports.MLB: endpoint += '/baseball/mlb'; break;
         case models.sports.NHL: endpoint += '/hockey/nhl'; break;
         case models.sports.NBA: endpoint += '/basketball/nba'; break;
+        case models.sports.MLS: endpoint += '/soccer/usa.1'; break;
+        case models.sports.RUGBY: endpoint += '/rugby/rugby-league'; break;
+        case models.sports.CRICKET: endpoint += '/cricket/8039'; break;
         default: break;
     }
     return endpoint;
@@ -78,7 +78,6 @@ function getGamesForSport(sport, onLoad, onError) {
             onLoad(games);
             return;
         }
-        // doesn't run if onLoad is called due to the return statement
         onError();
     }
     req.onerror = function (e) {
@@ -106,7 +105,7 @@ function getGame(id, sport, onLoad, onError) {
 function parseEvent(sport, event) {
     const competitors = event.competitions[0].competitors;
     const date = new Date(Date.parse(event.competitions[0].date));
-    const status = event.competitions[0].status
+    const status = event.competitions[0].status;
     const [details, time] = (function(type) {
         switch (type) {
             case "STATUS_FINAL": return [utils.dateToScheduleDate(date), "Final"];
@@ -115,16 +114,21 @@ function parseEvent(sport, event) {
         }
     })(status.type.name);
 
-    const id = event.id
+    const id = event.id;
 
-    const competitor1 = competitors[1]; //ESPN lists home first, we want to list away first so flip
+    const competitor1 = competitors[1]; 
     const competitor2 = competitors[0];
     const team1 = competitor1.team;
     const team2 = competitor2.team;
 
-    //if the game hasn't started, the app shouldn't show the scores
-    const score1 = status.type.name == "STATUS_SCHEDULED" ? "" : competitor1.score;
-    const score2 = status.type.name == "STATUS_SCHEDULED" ? "" : competitor2.score;
+    let score1 = status.type.name == "STATUS_SCHEDULED" ? "" : competitor1.score;
+    let score2 = status.type.name == "STATUS_SCHEDULED" ? "" : competitor2.score;
+
+    // Truncate massive Cricket score payloads to fit on the watchface
+    if (sport == models.sports.CRICKET) {
+        if (score1) score1 = score1.toString().split(" (")[0];
+        if (score2) score2 = score2.toString().split(" (")[0];
+    }
 
     const possession = status.type.name != "STATUS_IN_PROGRESS" ? models.possession.NONE : gamePossession(sport, event.competitions[0].situation, team1, team2);
 
@@ -134,16 +138,25 @@ function parseEvent(sport, event) {
     const team2Record = (competitor2.records && competitor2.records.length > 0) ? competitor2.records[0].summary : 
                       (competitor2.record && competitor2.record.length > 0) ? competitor2.record[0].summary : "0-0";
 
+    let broadcast = "";
+    if (event.competitions[0].broadcasts && event.competitions[0].broadcasts.length > 0) {
+        let names = event.competitions[0].broadcasts[0].names;
+        if (names && names.length > 0) {
+            broadcast = names[0];
+        }
+    }
+
     return new models.Game(
         id,
         sport,
-        new models.Team(team1.abbreviation, team1.id, team1Record), //single-game and multi-game response name the records/record field differently, so accept both
+        new models.Team(team1.abbreviation, team1.id, team1Record),
         score1,
         new models.Team(team2.abbreviation, team2.id, team2Record),
         score2,
         possession,
         time,
-        details
+        details,
+        broadcast 
     );
 }
 

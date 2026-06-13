@@ -7,11 +7,11 @@
 #include "../../../utils/utils.h"
 
 #define NUM_MENU_SECTIONS 1
-#define NUM_LEAGUES 5
+#define NUM_LEAGUES 8
 
 static Window *leagueMenuWindow;
 static MenuLayer *s_menu_layer;
-static Sport s_sports_items[NUM_LEAGUES] = {Favorites, SportNFL, SportMLB, SportNHL, SportNBA};
+static Sport s_sports_items[NUM_LEAGUES] = {Favorites, SportNFL, SportMLB, SportNHL, SportNBA, SportMLS, SportRugby, SportCricket};
 static GBitmap *s_icons[NUM_LEAGUES];
 
 
@@ -73,6 +73,7 @@ static void handle_window_appear(Window *window) {
 static void handle_window_unload(Window *window) {
     destroy_ui(window);
 }
+
 void show_league_menu(void)
 {
     leagueMenuWindow = window_create();

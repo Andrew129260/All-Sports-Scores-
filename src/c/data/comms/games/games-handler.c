@@ -35,6 +35,7 @@ static GameUpdateCallback on_game_update;
         dict_write_tuplet(game1, &TupletInteger(MESSAGE_KEY_SEND_GAME_POSSESSION, Team1));
         dict_write_tuplet(game1, &TupletCString(MESSAGE_KEY_SEND_GAME_TIME, "13:42 4th"));
         dict_write_tuplet(game1, &TupletCString(MESSAGE_KEY_SEND_GAME_DETAILS, "3rd & 8 - DEN 37"));
+        dict_write_tuplet(game1, &TupletCString(MESSAGE_KEY_SEND_GAME_BROADCAST, "CBS")); // Added to mock data
         handle_games_recieved(game1);
         break;
     default:
@@ -54,29 +55,19 @@ void handle_request_games(Sport sport, GameListSuccessCallback on_success, GameL
         on_success(games_count, games);
     }
 
-
-    // generate a random id for the request so that if two requests happen at once, only the latest is loaded into memory
     int request_id = rand();
-
     printf("getting games for %s", sport_get_name(sport));
-/*     current_request = request_id;
-    on_games_success = on_success;
-    on_games_error = on_error;
-    request_local(sport); */
 
     DictionaryIterator *out_iter;
     AppMessageResult result = app_message_outbox_begin(&out_iter);
 
-    if(result == APP_MSG_OK) { // Construct the message
-        // Add an item to ask for the sport
+    if(result == APP_MSG_OK) { 
         Tuplet update_game_tuple = TupletInteger(MESSAGE_KEY_LOAD_GAMES, sport);
         dict_write_tuplet(out_iter, &update_game_tuple);
 
-        // Add an item with the request id
         Tuplet request_id_tuple = TupletInteger(MESSAGE_KEY_REQUEST_ID, request_id);
         dict_write_tuplet(out_iter, &request_id_tuple);
 
-        // Send this message
         result = app_message_outbox_send();
 
         if(result != APP_MSG_OK) {
@@ -89,14 +80,12 @@ void handle_request_games(Sport sport, GameListSuccessCallback on_success, GameL
         }
         
     } else {
-        // The outbox cannot be used right now
         APP_LOG(APP_LOG_LEVEL_ERROR, "Error preparing the outbox: %d", (int)result);
         on_error(ConnectionError);
     }
 }
 
 void update_game(Game *game, GameUpdateCallback on_update) {
-    // generate a random id for the request so that if two requests happen at once, only the latest is loaded into memory
     int request_id = rand();
 
     DictionaryIterator *out_iter;
@@ -104,18 +93,15 @@ void update_game(Game *game, GameUpdateCallback on_update) {
 
     APP_LOG(APP_LOG_LEVEL_DEBUG, "Updating game %s - %s, id = %d", game->team1.name, game->team2.name, game->id);
 
-    if(result == APP_MSG_OK) { // Construct the message
-        // Add an item to ask for the sport
+    if(result == APP_MSG_OK) { 
         Tuplet update_game_id_tuple = TupletInteger(MESSAGE_KEY_UPDATE_GAME_ID, game->id);
         Tuplet update_game_sport_tuple = TupletInteger(MESSAGE_KEY_UPDATE_GAME_SPORT, game->sport);
         dict_write_tuplet(out_iter, &update_game_id_tuple);
         dict_write_tuplet(out_iter, &update_game_sport_tuple);
 
-        // Add an item with the request id
         Tuplet request_id_tuple = TupletInteger(MESSAGE_KEY_REQUEST_ID, request_id);
         dict_write_tuplet(out_iter, &request_id_tuple);
 
-        // Send this message
         result = app_message_outbox_send();
 
         if(result != APP_MSG_OK) {
@@ -127,7 +113,6 @@ void update_game(Game *game, GameUpdateCallback on_update) {
         }
         
     } else {
-        // The outbox cannot be used right now
         APP_LOG(APP_LOG_LEVEL_ERROR, "Error preparing the outbox: %d", (int)result);
         on_update(GameUpdateNetworkError);
     }
@@ -143,6 +128,7 @@ static void clear_game(Game *game) {
     free(game->time);
     free(game->summary);
     free(game->details);
+    free(game->broadcast); // Ensure broadcast string is freed to prevent memory leaks
     free(game);
 }
 
@@ -167,20 +153,19 @@ void handle_clear_games() {
 
 static char *memorize_dict_string(const DictionaryIterator *dict, uint32_t key) {
     Tuple *tuple = dict_find(dict, key);
+    if (!tuple) return NULL; // Added safety check
     int len = strlen(tuple->value->cstring);
     char *str = malloc(len + 1);
     strcpy(str, tuple->value->cstring);
     return str;
 }
 
-// From an AppMessage DictionaryIterator, set values in an already malloc-ed Game pointer
 void game_set(Game *game, DictionaryIterator *iter) {
     int game_id = dict_find(iter, MESSAGE_KEY_SEND_GAME_ID)->value->int32;
 
     APP_LOG(APP_LOG_LEVEL_DEBUG, "recieved games_tuple");
     int sport = dict_find(iter, MESSAGE_KEY_SEND_GAME_SPORT)->value->int8;
     APP_LOG(APP_LOG_LEVEL_DEBUG, "sport_tuple = %d", sport);
-
 
     char *team_1_name = memorize_dict_string(iter, MESSAGE_KEY_SEND_GAME_TEAM_1_NAME);
     char *team_2_name = memorize_dict_string(iter, MESSAGE_KEY_SEND_GAME_TEAM_2_NAME);
@@ -197,11 +182,13 @@ void game_set(Game *game, DictionaryIterator *iter) {
     bool team_1_favorite = dict_find(iter, MESSAGE_KEY_SEND_GAME_TEAM_1_FAVORITE)->value->int8;
     bool team_2_favorite = dict_find(iter, MESSAGE_KEY_SEND_GAME_TEAM_2_FAVORITE)->value->int8;
 
-
     int possession = dict_find(iter, MESSAGE_KEY_SEND_GAME_POSSESSION)->value->int8;
 
     char *time = memorize_dict_string(iter, MESSAGE_KEY_SEND_GAME_TIME);
     char *details = memorize_dict_string(iter, MESSAGE_KEY_SEND_GAME_DETAILS);
+    
+    // Unpack the new broadcast string
+    char *broadcast = memorize_dict_string(iter, MESSAGE_KEY_SEND_GAME_BROADCAST);
 
     char *summary = malloc(strlen(team_1_name) + strlen(team_1_score) + strlen(team_2_name) + strlen(team_2_score) + 6);
     strcpy(summary, team_1_name);
@@ -232,19 +219,18 @@ void game_set(Game *game, DictionaryIterator *iter) {
     game->time = time;
     game->details = details;
     game->summary = summary;
+    game->broadcast = broadcast; // Assign the broadcast string to the Game struct
 }
 
 void handle_games_recieved(DictionaryIterator *iter) {
     int request_id = dict_find(iter, MESSAGE_KEY_REQUEST_ID)->value->int32;
 
-    // if phone is sending games from a request the user stopped viewing, discard them 
     if (request_id != current_request){ 
         return;
     }
 
     GamesListState data = dict_find(iter, MESSAGE_KEY_SEND_GAME_LIST)->value->int8;
 
-    // Handle edge cases. If there was an error connecting to the API or the API returns no games for a sport, use the corresponding error callback
     if (data == GamesListNoGames) {
         on_games_error(NoGames);
         return;
@@ -281,7 +267,6 @@ void handle_game_update_recieved(DictionaryIterator *iter) {
 
     int game_id = dict_find(iter, MESSAGE_KEY_SEND_GAME_ID)->value->int32;
     APP_LOG(APP_LOG_LEVEL_DEBUG, "handling game update, id = %d", game_id);
-
 
     for (int i = 0; i < games_count; i++) {
         if (games[i]->id == game_id) {

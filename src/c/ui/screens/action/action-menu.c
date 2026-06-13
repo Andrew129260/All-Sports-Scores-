@@ -17,33 +17,23 @@ static MenuAction current_action;
 static MenuAction refresh_game = ACTION_REFRESH_GAME;
 static MenuAction team_1 = ACTION_TEAM_1;
 static MenuAction team_2 = ACTION_TEAM_2;
+static MenuAction broadcast = ACTION_BROADCAST;
 
 static void favorite_change_callback(int team_id, FavoriteChangeResult result) {
     APP_LOG(APP_LOG_LEVEL_DEBUG, "favorite changed callback, result = %d", result);
-    if(s_result_window) {
-        APP_LOG(APP_LOG_LEVEL_DEBUG, "destroying window");
-        window_destroy(s_result_window);
-        APP_LOG(APP_LOG_LEVEL_DEBUG, "window destroyed");
-    }
     s_result_window = result_window_create_favorite(s_game, current_action, result);
     action_menu_set_result_window(s_action_menu, s_result_window);
     action_menu_unfreeze(s_action_menu);
-    action_menu_close(s_action_menu, true);
 }
 
 static void game_update_callback(GameUpdateResult state) {
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "game update callback, result = %d", state);
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "game update callback, game pointer = %p", s_game);
     if (state == GameUpdated) {
         action_menu_unfreeze(s_action_menu);
-        action_menu_close(s_action_menu, true);
     } else {
         s_result_window = result_window_create_refresh(s_game, state);
         action_menu_set_result_window(s_action_menu, s_result_window);
         action_menu_unfreeze(s_action_menu);
-        action_menu_close(s_action_menu, true);
     }
-    
 }
 
 static void action_click_callback(ActionMenu *menu, const ActionMenuItem *performed_action, void *context) {
@@ -61,6 +51,11 @@ static void action_click_callback(ActionMenu *menu, const ActionMenuItem *perfor
         case ACTION_TEAM_2: 
             handle_request_change_favorite(s_game, s_game->team2.id, favorite_change_callback);
             break;
+        case ACTION_BROADCAST: 
+            s_result_window = result_window_create_broadcast(s_game);
+            action_menu_set_result_window(s_action_menu, s_result_window);
+            action_menu_unfreeze(s_action_menu);
+            break;
         default:
             action_menu_unfreeze(s_action_menu);
             break;
@@ -69,8 +64,14 @@ static void action_click_callback(ActionMenu *menu, const ActionMenuItem *perfor
 
 static void action_menu_close_callback (ActionMenu *menu, const ActionMenuItem *performed_action, void *context) {
     ActionMenuLabels *labels = (ActionMenuLabels *) context;
-    free(labels->team_1_label);
-    free(labels->team_2_label);
+    if (labels->team_1_label) {
+        free(labels->team_1_label);
+        labels->team_1_label = NULL;
+    }
+    if (labels->team_2_label) {
+        free(labels->team_2_label);
+        labels->team_2_label = NULL;
+    }
 }
 
 static char *create_label(char *team_name, bool is_favorite) {
@@ -88,12 +89,9 @@ static char *create_label(char *team_name, bool is_favorite) {
 }
 
 void game_action_menu_open(Game *game) {
-
-    s_level = action_menu_level_create(3);
+    s_level = action_menu_level_create(4);
     s_game = game;
 
-    printf("creating label for team 1");
-    printf("creating label for team 1, name = %s", s_game->team1.name);
     char *team_1_label = create_label(s_game->team1.name, s_game->team1.favorite);
     char *team_2_label = create_label(s_game->team2.name, s_game->team2.favorite);
     
@@ -103,13 +101,10 @@ void game_action_menu_open(Game *game) {
         .team_2_label = team_2_label
     };
 
-    // Removed the unused 'game_item' and 'team_2_item' pointer assignments
     action_menu_level_add_action(s_level, "Refresh", action_click_callback, &refresh_game);
-    ActionMenuItem *team_1_item = action_menu_level_add_action(s_level, s_labels.team_1_label, action_click_callback, &team_1);
+    action_menu_level_add_action(s_level, s_labels.team_1_label, action_click_callback, &team_1);
     action_menu_level_add_action(s_level, s_labels.team_2_label, action_click_callback, &team_2);
-
-    MenuAction action = *(MenuAction *)action_menu_item_get_action_data(team_1_item);
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "action click callback, result = %d", action);
+    action_menu_level_add_action(s_level, "Where to Watch", action_click_callback, &broadcast);
 
     config = (ActionMenuConfig) {
         .root_level = s_level,

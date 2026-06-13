@@ -16,7 +16,7 @@ typedef enum {
 } AppError;
 
 typedef enum {
-    Favorites, SportNFL, SportMLB, SportNHL, SportNBA
+    Favorites, SportNFL, SportMLB, SportNHL, SportNBA, SportMLS, SportRugby, SportCricket
 } Sport;
 
 typedef enum {
@@ -41,6 +41,7 @@ typedef struct Game
     char* time;
     char* details;
     char* summary;
+    char* broadcast;
 } Game;
 
 #endif

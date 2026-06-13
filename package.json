@@ -39,11 +39,48 @@
             "SEND_GAME_DETAILS",
             "CONFIRM_FAVORITE",
             "CONFIG_LEAGUES",
-            "CONFIG_SHOW_RECORDS"
+            "CONFIG_SHOW_RECORDS",
+            "SEND_GAME_BROADCAST"
         ],
         "projectType": "native",
         "resources": {
             "media": [
+                {
+                    "file": "images/Rugby-25.png",
+                    "name": "Rugby_25",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/Rugby-16.png",
+                    "name": "Rugby_16",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/Mls-25.png",
+                    "name": "Mls_25",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/Cricket-25.png",
+                    "name": "Cricket_25",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/Cricket-16.png",
+                    "name": "Cricket_16",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/Mls-16.png",
+                    "name": "Mls_16",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
                 {
                     "file": "images/Baseball-16.png",
                     "name": "BASEBALL_16",
@@ -147,5 +184,5 @@
             "watchface": false
         }
     },
-    "version": "2.0.0"
+    "version": "3.0.0"
 }
