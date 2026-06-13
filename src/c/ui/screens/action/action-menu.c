@@ -19,11 +19,9 @@ static MenuAction team_1 = ACTION_TEAM_1;
 static MenuAction team_2 = ACTION_TEAM_2;
 static MenuAction broadcast = ACTION_BROADCAST;
 
-static void favorite_change_callback(int team_id, FavoriteChangeResult result) {
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "favorite changed callback, result = %d", result);
-    s_result_window = result_window_create_favorite(s_game, current_action, result);
-    action_menu_set_result_window(s_action_menu, s_result_window);
-    action_menu_unfreeze(s_action_menu);
+// 1. New Silent Callback: Lets the phone do the heavy lifting in the background without freezing the UI!
+static void silent_favorite_change_callback(int team_id, FavoriteChangeResult result) {
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "Background favorite sync complete, result = %d", result);
 }
 
 static void game_update_callback(GameUpdateResult state) {
@@ -37,27 +35,37 @@ static void game_update_callback(GameUpdateResult state) {
 }
 
 static void action_click_callback(ActionMenu *menu, const ActionMenuItem *performed_action, void *context) {
-    action_menu_freeze(s_action_menu);
     MenuAction action = *(MenuAction *)action_menu_item_get_action_data(performed_action);
     current_action = action;
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "action click callback, result = %d", action);
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "action click callback, action = %d", action);
+    
     switch (action) {
         case ACTION_REFRESH_GAME: 
+            // Only freeze the UI for a refresh, since we actually need to wait for the new score payload
+            action_menu_freeze(s_action_menu);
             update_game(s_game, game_update_callback);
             break;
+            
         case ACTION_TEAM_1: 
-            handle_request_change_favorite(s_game, s_game->team1.id, favorite_change_callback);
+            // Optimistic UI: Send request in background, instantly show animation
+            handle_request_change_favorite(s_game, s_game->team1.id, silent_favorite_change_callback);
+            s_result_window = result_window_create_favorite(s_game, current_action, s_game->team1.favorite ? 0 : 1);
+            action_menu_set_result_window(s_action_menu, s_result_window);
             break;
+            
         case ACTION_TEAM_2: 
-            handle_request_change_favorite(s_game, s_game->team2.id, favorite_change_callback);
+            // Optimistic UI: Send request in background, instantly show animation
+            handle_request_change_favorite(s_game, s_game->team2.id, silent_favorite_change_callback);
+            s_result_window = result_window_create_favorite(s_game, current_action, s_game->team2.favorite ? 0 : 1);
+            action_menu_set_result_window(s_action_menu, s_result_window);
             break;
+            
         case ACTION_BROADCAST: 
             s_result_window = result_window_create_broadcast(s_game);
             action_menu_set_result_window(s_action_menu, s_result_window);
-            action_menu_unfreeze(s_action_menu);
             break;
+            
         default:
-            action_menu_unfreeze(s_action_menu);
             break;
     }
 }

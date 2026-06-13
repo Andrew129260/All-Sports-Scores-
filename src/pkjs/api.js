@@ -20,26 +20,26 @@ function getFavoriteGames(favorites, onLoad, onError) {
     }
     console.log("getting favorite games");
     const sportGroups = utils.groupBy(favorites, favoriteItem => favoriteItem.sport);
-    console.log("sportGroups = ", JSON.stringify(sportGroups));
     const favoriteSports = Object.keys(sportGroups).map(key => parseInt(key));
-    console.log("favoriteSports = ", JSON.stringify(favoriteSports));
     var favoriteGames = [];
     var loadedSports = [];
+    
     Object.values(sportGroups).forEach((sportGroup) => {
         const sport = sportGroup[0].sport
         const teamIDs = sportGroup.map(favoriteItem => favoriteItem.teamID)
         getGamesForSport(
             sport,
             (games) => {
-                console.log("loaded sport = ", sport, ", games = ", JSON.stringify(games));
-                console.log("teamIDs = ", JSON.stringify(teamIDs), "includes 23 = ", teamIDs.includes("23"));
                 const filtered = games.filter(game => teamIDs.includes(game.team1.id) || teamIDs.includes(game.team2.id) );
-                console.log("filtered = ", JSON.stringify(filtered));
                 favoriteGames.push(...filtered);
                 loadedSports.push(sport);
-                console.log("favoriteGames = ", JSON.stringify(favoriteGames), ", loadedSports = ", JSON.stringify(loadedSports), ", favoriteSports = ", JSON.stringify(favoriteSports));
+                
                 if (favoriteSports.every(sport => loadedSports.includes(sport))) {
                     console.log("loaded all sports");
+                    
+                    // Trigger the Timeline Pin logic for all future favorite games!
+                    updateTimelinePins(favoriteGames);
+                    
                     onLoad(favoriteGames);
                 }
             },
@@ -48,51 +48,124 @@ function getFavoriteGames(favorites, onLoad, onError) {
     })
 }
 
-function getEndpointForSport(sport) {
-    var endpoint = "https://site.api.espn.com/apis/site/v2/sports";
+function getEndpointsForSport(sport) {
+    var base = "https://site.api.espn.com/apis/site/v2/sports";
     switch (sport) {
-        case models.sports.NFL: endpoint += '/football/nfl'; break;
-        case models.sports.MLB: endpoint += '/baseball/mlb'; break;
-        case models.sports.NHL: endpoint += '/hockey/nhl'; break;
-        case models.sports.NBA: endpoint += '/basketball/nba'; break;
-        case models.sports.MLS: endpoint += '/soccer/usa.1'; break;
-        case models.sports.RUGBY: endpoint += '/rugby/rugby-league'; break;
-        case models.sports.CRICKET: endpoint += '/cricket/8039'; break;
-        default: break;
+        case models.sports.NFL: return [
+            base + '/football/nfl', 
+            base + '/football/college-football' // NCAAF
+        ];
+        case models.sports.MLB: return [
+            base + '/baseball/mlb', 
+            base + '/baseball/college-baseball' // NCAA Baseball
+        ];
+        case models.sports.NHL: return [
+            base + '/hockey/nhl',
+            base + '/hockey/mens-college-hockey' // NCAA Hockey
+        ];
+        case models.sports.NBA: return [
+            base + '/basketball/nba', 
+            base + '/basketball/wnba', 
+            base + '/basketball/mens-college-basketball' // NCAAM
+        ];
+        case models.sports.MLS: return [
+            base + '/soccer/usa.1', // MLS
+            base + '/soccer/eng.1', // English Premier League
+            base + '/soccer/esp.1', // La Liga
+            base + '/soccer/uefa.champions' // Champions League
+        ];
+        case models.sports.RUGBY: return [
+            base + '/rugby-league/3', // NRL
+            base + '/rugby/180659' // Six Nations
+        ];
+        case models.sports.CRICKET: return [
+            base + '/cricket/8039', // International
+            base + '/cricket/8048' // Indian Premier League (IPL)
+        ];
+        default: return [];
     }
-    return endpoint;
 }
 
 function getGamesForSport(sport, onLoad, onError) {
     if (DEBUG_MOCK) return mock.nfl;
-    var req = new XMLHttpRequest();
-    const endpoint = getEndpointForSport(sport) + "/scoreboard"
-    console.log("getting games from endpoint = ", endpoint);
-    req.open('GET', endpoint);
-    req.onload = function (e) {
-        if (req.readyState == 4 && req.status == 200) {
-            const sportsData = JSON.parse(req.responseText);
-            console.log("parsed sportsData")
-            const events = sportsData.events;
-            const games = events.map(event => parseEvent(sport, event));
-            onLoad(games);
-            return;
-        }
+    
+    const endpoints = getEndpointsForSport(sport);
+    let allGames = [];
+    let completedRequests = 0;
+    let hasCriticalError = false;
+
+    if (endpoints.length === 0) {
         onError();
+        return;
     }
-    req.onerror = function (e) {
-        onError()
+
+    // Fire a request for every URL in the array simultaneously
+    endpoints.forEach(endpoint => {
+        var req = new XMLHttpRequest();
+        const fullUrl = endpoint + "/scoreboard";
+        console.log("getting games from endpoint = ", fullUrl);
+        
+        req.open('GET', fullUrl);
+        req.onload = function () {
+            if (req.readyState == 4) {
+                if (req.status == 200) {
+                    try {
+                        const sportsData = JSON.parse(req.responseText);
+                        if (sportsData.events) {
+                            const games = sportsData.events.map(event => parseEvent(sport, event));
+                            allGames = allGames.concat(games);
+                        }
+                    } catch (e) {
+                        console.log("JSON Parse Error for: " + fullUrl);
+                    }
+                } else if (req.status != 404) {
+                    hasCriticalError = true;
+                }
+                
+                completedRequests++;
+                checkCompletion();
+            }
+        };
+        req.onerror = function () {
+            console.log("Network error for: " + fullUrl);
+            hasCriticalError = true;
+            completedRequests++;
+            checkCompletion();
+        };
+        req.send();
+    });
+
+    // Only update the watch UI once ALL requests have finished checking in
+    function checkCompletion() {
+        if (completedRequests === endpoints.length) {
+            if (allGames.length > 0) {
+                
+                // DEDUPLICATION: Ensure no game IDs are repeated before sending to the watch
+                const uniqueGames = [];
+                const seenIds = new Set();
+                allGames.forEach(game => {
+                    if (!seenIds.has(game.id)) {
+                        seenIds.add(game.id);
+                        uniqueGames.push(game);
+                    }
+                });
+
+                onLoad(uniqueGames);
+                
+            } else if (hasCriticalError) {
+                onError(); 
+            } else {
+                onLoad([]); 
+            }
+        }
     }
-    req.send();
 }
 
 function getGame(id, sport, onLoad, onError) {
-    console.log("getting game ", id, " for sport = ", sport);
     getGamesForSport(
         sport, 
         (games) => { 
             let foundGame = games.find(g => g.id == id)
-            console.log("foundGame = ", JSON.stringify(foundGame));
             if(foundGame == undefined) {
                 onError();
             } else {
@@ -124,7 +197,6 @@ function parseEvent(sport, event) {
     let score1 = status.type.name == "STATUS_SCHEDULED" ? "" : competitor1.score;
     let score2 = status.type.name == "STATUS_SCHEDULED" ? "" : competitor2.score;
 
-    // Truncate massive Cricket score payloads to fit on the watchface
     if (sport == models.sports.CRICKET) {
         if (score1) score1 = score1.toString().split(" (")[0];
         if (score2) score2 = score2.toString().split(" (")[0];
@@ -146,7 +218,7 @@ function parseEvent(sport, event) {
         }
     }
 
-    return new models.Game(
+    var gameObj = new models.Game(
         id,
         sport,
         new models.Team(team1.abbreviation, team1.id, team1Record),
@@ -158,6 +230,11 @@ function parseEvent(sport, event) {
         details,
         broadcast 
     );
+
+    // Save the raw Date object to the game so we can do our 48-hour Timeline math
+    gameObj.startTime = date; 
+    
+    return gameObj;
 }
 
 function gameDetails(sport, situation) {
@@ -185,6 +262,94 @@ function gamePossession(sport, situation, team1, team2) {
 
 function possessionByTeam(possessionID, team1, team2) {
     return (team1.id == possessionID) ? models.possession.TEAM1 : (team2.id == possessionID) ? models.possession.TEAM2 : models.possession.NONE;
+}
+
+// ==========================================
+// TIMELINE PIN LOGIC
+// ==========================================
+
+function getTimelineIcon(sport) {
+    // Map our sports to Pebble's built-in timeline system icons
+    switch (sport) {
+        case models.sports.NFL: return "system://images/AMERICAN_FOOTBALL";
+        case models.sports.MLB: return "system://images/BASEBALL";
+        case models.sports.NHL: return "system://images/HOCKEY_GAME";
+        case models.sports.NBA: return "system://images/BASKETBALL";
+        case models.sports.MLS: return "system://images/SOCCER_GAME";
+        case models.sports.CRICKET: return "system://images/CRICKET_GAME";
+        default: return "system://images/GENERIC_SPORTS";
+    }
+}
+
+function insertUserPin(pin) {
+    console.log("Attempting to insert pin: " + JSON.stringify(pin));
+    
+    Pebble.getTimelineToken(function(token) {
+        console.log("Success! Got timeline token: " + token);
+        
+        var req = new XMLHttpRequest();
+        req.open('PUT', 'https://timeline-api.rebble.io/v1/user/pins/' + pin.id, true);
+        req.setRequestHeader('Content-Type', 'application/json');
+        req.setRequestHeader('X-User-Token', '' + token);
+        
+        req.onload = function() {
+            console.log('Core Devices Intercept Status: ' + req.status);
+        };
+        req.onerror = function() {
+            console.log('Error pushing timeline pin (Network/Intercept error)');
+        }
+        
+        req.send(JSON.stringify(pin));
+        console.log("Pin payload sent to interceptor!");
+        
+    }, function(error) {
+        console.log('CRITICAL ERROR: Failed to get timeline token: ' + error);
+    });
+}
+
+function updateTimelinePins(games) {
+    const now = new Date();
+    const future48h = new Date(now.getTime() + (48 * 60 * 60 * 1000));
+    
+    console.log("Timeline Check: Now = " + now.toISOString() + " | Limit = " + future48h.toISOString());
+
+    games.forEach(game => {
+        if (game.startTime) {
+            console.log("Checking Game ID " + game.id + " | Start = " + game.startTime.toISOString());
+            
+            if (game.startTime > now && game.startTime < future48h) {
+                console.log("Game falls in 48h window! Building pin...");
+                
+                let bodyText = "Starts at: " + game.time + " (" + game.details + ")";
+                if (game.broadcast) {
+                    bodyText += "\nWatch on: " + game.broadcast;
+                }
+
+                // Core Devices timezone fix: Shift the UTC time to match your local time digits
+                let localOffset = game.startTime.getTimezoneOffset() * 60000;
+                let localTimeISO = new Date(game.startTime.getTime() - localOffset).toISOString();
+
+                var pin = {
+                    "id": "game-" + game.id,
+                    "time": localTimeISO,
+                    "layout": {
+                        "type": "genericPin",
+                        "title": game.team1.name + " vs " + game.team2.name,
+                        "subtitle": "Get ready for the game!",
+                        "body": bodyText,
+                        "tinyIcon": getTimelineIcon(game.sport),
+                        "largeIcon": getTimelineIcon(game.sport)
+                    }
+                };
+                
+                insertUserPin(pin);
+            } else {
+                console.log("Game rejected: outside 48 hour window.");
+            }
+        } else {
+            console.log("Game rejected: Invalid start time.");
+        }
+    });
 }
 
 module.exports.getGames = getGames;
