@@ -19,7 +19,11 @@ static MenuAction team_1 = ACTION_TEAM_1;
 static MenuAction team_2 = ACTION_TEAM_2;
 static MenuAction broadcast = ACTION_BROADCAST;
 
-// 1. New Silent Callback: Lets the phone do the heavy lifting in the background without freezing the UI!
+// Static Buffers: Pre-allocate memory so we NEVER have to call malloc() or free()!
+static char s_team_1_buffer[64];
+static char s_team_2_buffer[64];
+static char s_broadcast_buffer[32]; // Unified broadcast buffer
+
 static void silent_favorite_change_callback(int team_id, FavoriteChangeResult result) {
     APP_LOG(APP_LOG_LEVEL_DEBUG, "Background favorite sync complete, result = %d", result);
 }
@@ -28,8 +32,12 @@ static void game_update_callback(GameUpdateResult state) {
     if (state == GameUpdated) {
         action_menu_unfreeze(s_action_menu);
     } else {
+        #if defined(PBL_PLATFORM_APLITE)
+        vibes_short_pulse();
+        #else
         s_result_window = result_window_create_refresh(s_game, state);
         action_menu_set_result_window(s_action_menu, s_result_window);
+        #endif
         action_menu_unfreeze(s_action_menu);
     }
 }
@@ -41,28 +49,37 @@ static void action_click_callback(ActionMenu *menu, const ActionMenuItem *perfor
     
     switch (action) {
         case ACTION_REFRESH_GAME: 
-            // Only freeze the UI for a refresh, since we actually need to wait for the new score payload
             action_menu_freeze(s_action_menu);
             update_game(s_game, game_update_callback);
             break;
             
         case ACTION_TEAM_1: 
-            // Optimistic UI: Send request in background, instantly show animation
             handle_request_change_favorite(s_game, s_game->team1.id, silent_favorite_change_callback);
-            s_result_window = result_window_create_favorite(s_game, current_action, s_game->team1.favorite ? 0 : 1);
+            s_game->team1.favorite = !s_game->team1.favorite; 
+
+            #if defined(PBL_PLATFORM_APLITE)
+            vibes_short_pulse();
+            #else
+            s_result_window = result_window_create_favorite(s_game, current_action, s_game->team1.favorite ? 1 : 0);
             action_menu_set_result_window(s_action_menu, s_result_window);
+            #endif
             break;
             
         case ACTION_TEAM_2: 
-            // Optimistic UI: Send request in background, instantly show animation
             handle_request_change_favorite(s_game, s_game->team2.id, silent_favorite_change_callback);
-            s_result_window = result_window_create_favorite(s_game, current_action, s_game->team2.favorite ? 0 : 1);
+            s_game->team2.favorite = !s_game->team2.favorite;
+
+            #if defined(PBL_PLATFORM_APLITE)
+            vibes_short_pulse();
+            #else
+            s_result_window = result_window_create_favorite(s_game, current_action, s_game->team2.favorite ? 1 : 0);
             action_menu_set_result_window(s_action_menu, s_result_window);
+            #endif
             break;
             
         case ACTION_BROADCAST: 
-            s_result_window = result_window_create_broadcast(s_game);
-            action_menu_set_result_window(s_action_menu, s_result_window);
+            // UNIVERSAL UX: They already see the network on the button. Just vibrate and close!
+            vibes_short_pulse();
             break;
             
         default:
@@ -70,59 +87,53 @@ static void action_click_callback(ActionMenu *menu, const ActionMenuItem *perfor
     }
 }
 
-static void action_menu_close_callback (ActionMenu *menu, const ActionMenuItem *performed_action, void *context) {
-    ActionMenuLabels *labels = (ActionMenuLabels *) context;
-    if (labels->team_1_label) {
-        free(labels->team_1_label);
-        labels->team_1_label = NULL;
-    }
-    if (labels->team_2_label) {
-        free(labels->team_2_label);
-        labels->team_2_label = NULL;
-    }
+static void action_menu_did_close(ActionMenu *action_menu, const ActionMenuItem *item, void *context) {
+    action_menu_hierarchy_destroy(s_level, NULL, NULL);
 }
 
-static char *create_label(char *team_name, bool is_favorite) {
-    char *before = "Add ";
-    char *after = " to Favorites";
+static void populate_label_buffer(char *buffer, size_t buffer_size, char *team_name, bool is_favorite) {
+    const char *safe_name = team_name ? team_name : "Team";
+    
     if(is_favorite) {
-        before = "Remove ";
-        after = " from Favorites";
+        snprintf(buffer, buffer_size, "Remove %s", safe_name); 
+    } else {
+        snprintf(buffer, buffer_size, "Add %s", safe_name);
     }
-    char *label = malloc(strlen(team_name) + strlen(before) + strlen(after) + 1);
-    strcpy(label, before);
-    strcat(label, team_name);
-    strcat(label, after);
-    return label;
 }
 
 void game_action_menu_open(Game *game) {
     s_level = action_menu_level_create(4);
     s_game = game;
 
-    char *team_1_label = create_label(s_game->team1.name, s_game->team1.favorite);
-    char *team_2_label = create_label(s_game->team2.name, s_game->team2.favorite);
+    populate_label_buffer(s_team_1_buffer, sizeof(s_team_1_buffer), s_game->team1.name, s_game->team1.favorite);
+    populate_label_buffer(s_team_2_buffer, sizeof(s_team_2_buffer), s_game->team2.name, s_game->team2.favorite);
     
-    s_labels = (ActionMenuLabels) {
-        .game = s_game,
-        .team_1_label = team_1_label,
-        .team_2_label = team_2_label
-    };
+    // Universal Dynamic Broadcast Label
+    if (s_game->broadcast && strlen(s_game->broadcast) > 0) {
+        snprintf(s_broadcast_buffer, sizeof(s_broadcast_buffer), "TV: %s", s_game->broadcast);
+    } else {
+        snprintf(s_broadcast_buffer, sizeof(s_broadcast_buffer), "TV: Unlisted");
+    }
+
+    s_labels.game = s_game;
+    s_labels.team_1_label = s_team_1_buffer;
+    s_labels.team_2_label = s_team_2_buffer;
 
     action_menu_level_add_action(s_level, "Refresh", action_click_callback, &refresh_game);
     action_menu_level_add_action(s_level, s_labels.team_1_label, action_click_callback, &team_1);
     action_menu_level_add_action(s_level, s_labels.team_2_label, action_click_callback, &team_2);
-    action_menu_level_add_action(s_level, "Where to Watch", action_click_callback, &broadcast);
+    
+    // UNIVERSAL UI: Apply the TV Network display directly to the button for all watches
+    action_menu_level_add_action(s_level, s_broadcast_buffer, action_click_callback, &broadcast);
 
-    config = (ActionMenuConfig) {
-        .root_level = s_level,
-        .colors = {
-            .background = GColorDukeBlue,
-            .foreground = GColorWhite
-        },
-        .context = &s_labels,
-        .will_close = action_menu_close_callback
-    };
+    ActionMenuConfig config_temp = {0};
+    config_temp.root_level = s_level;
+    config_temp.colors.background = GColorDukeBlue;
+    config_temp.colors.foreground = GColorWhite;
+    config_temp.context = &s_labels;
+    config_temp.did_close = action_menu_did_close; 
+    
+    config = config_temp;
 
     s_action_menu = action_menu_open(&config);
 }

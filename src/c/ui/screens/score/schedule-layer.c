@@ -3,6 +3,12 @@
 
 static void schedule_update_proc(Layer *layer, GContext *ctx) {
     Game *game = *(Game **)layer_get_data(layer);
+    
+    // CRITICAL GUARD: Never attempt to draw if the game data pointer was lost
+    if (game == NULL) {
+        return;
+    }
+
     GRect layer_bounds = layer_get_bounds(layer);
 
     GFont font_team = fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD);
@@ -16,25 +22,31 @@ static void schedule_update_proc(Layer *layer, GContext *ctx) {
     int half_w = separator_bounds.origin.x;
     int right_x = separator_bounds.origin.x + separator_bounds.size.w;
 
+    // HARDENED GUARDS: Prevent the Pebble graphics engine from crashing on NULL pointers
+    const char *t1_name = game->team1.name ? game->team1.name : "";
+    const char *t2_name = game->team2.name ? game->team2.name : "";
+    const char *t1_rec = game->team1.record ? game->team1.record : "";
+    const char *t2_rec = game->team2.record ? game->team2.record : "";
+
     // Team 1
-    GSize tm1_sz = graphics_text_layout_get_content_size(game->team1.name, font_team, GRect(0, 0, half_w, 32), GTextOverflowModeWordWrap, GTextAlignmentLeft);
+    GSize tm1_sz = graphics_text_layout_get_content_size(t1_name, font_team, GRect(0, 0, half_w, 32), GTextOverflowModeWordWrap, GTextAlignmentLeft);
     GRect tm1_bnds = GRect((half_w / 2) - (tm1_sz.w / 2), 0, tm1_sz.w + 10, 32);
-    graphics_draw_text(ctx, game->team1.name, font_team, tm1_bnds, GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
+    graphics_draw_text(ctx, t1_name, font_team, tm1_bnds, GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
 
     // Team 2
-    GSize tm2_sz = graphics_text_layout_get_content_size(game->team2.name, font_team, GRect(0, 0, half_w, 32), GTextOverflowModeWordWrap, GTextAlignmentLeft);
+    GSize tm2_sz = graphics_text_layout_get_content_size(t2_name, font_team, GRect(0, 0, half_w, 32), GTextOverflowModeWordWrap, GTextAlignmentLeft);
     GRect tm2_bnds = GRect(right_x + (half_w / 2) - (tm2_sz.w / 2), 0, tm2_sz.w + 10, 32);
-    graphics_draw_text(ctx, game->team2.name, font_team, tm2_bnds, GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
+    graphics_draw_text(ctx, t2_name, font_team, tm2_bnds, GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
 
     // Record 1
-    GSize rec1_sz = graphics_text_layout_get_content_size(game->team1.record, font_record, GRect(0, 0, half_w, 18), GTextOverflowModeWordWrap, GTextAlignmentLeft);
+    GSize rec1_sz = graphics_text_layout_get_content_size(t1_rec, font_record, GRect(0, 0, half_w, 18), GTextOverflowModeWordWrap, GTextAlignmentLeft);
     GRect rec1_bnds = GRect((half_w / 2) - (rec1_sz.w / 2), 28, rec1_sz.w + 10, 18);
-    graphics_draw_text(ctx, game->team1.record, font_record, rec1_bnds, GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
+    graphics_draw_text(ctx, t1_rec, font_record, rec1_bnds, GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
 
     // Record 2
-    GSize rec2_sz = graphics_text_layout_get_content_size(game->team2.record, font_record, GRect(0, 0, half_w, 18), GTextOverflowModeWordWrap, GTextAlignmentLeft);
+    GSize rec2_sz = graphics_text_layout_get_content_size(t2_rec, font_record, GRect(0, 0, half_w, 18), GTextOverflowModeWordWrap, GTextAlignmentLeft);
     GRect rec2_bnds = GRect(right_x + (half_w / 2) - (rec2_sz.w / 2), 28, rec2_sz.w + 10, 18);
-    graphics_draw_text(ctx, game->team2.record, font_record, rec2_bnds, GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
+    graphics_draw_text(ctx, t2_rec, font_record, rec2_bnds, GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
 }
 
 Layer *schedule_layer_create(GRect bounds, Game *game) {

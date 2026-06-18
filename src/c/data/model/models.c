@@ -12,11 +12,17 @@ int sport_get_icon_res_small(Sport sport) {
         case SportNBA:
             return RESOURCE_ID_BASKETBALL_16;
         case SportMLS:
-            return RESOURCE_ID_Mls_16; // Fixed casing to match CloudPebble
+            return RESOURCE_ID_Mls_16; 
         case SportRugby:
-            return RESOURCE_ID_Rugby_16; // Fixed casing to match CloudPebble
+            return RESOURCE_ID_Rugby_16; 
         case SportCricket:
-            return RESOURCE_ID_Cricket_16; // Fixed casing to match CloudPebble
+            return RESOURCE_ID_Cricket_16; 
+        case SportTennis:
+            return RESOURCE_ID_IMAGE_SPORT_TENNIS16;
+        case SportAFL:
+            return RESOURCE_ID_IMAGE_SPORT_AFL16;
+        case SportMMA:
+            return RESOURCE_ID_IMAGE_SPORT_MMA16;
         default:
             return RESOURCE_ID_STAR_16;
     }
@@ -33,11 +39,17 @@ int sport_get_icon_res_large(Sport sport) {
         case SportNBA:
             return RESOURCE_ID_BASKETBALL_25;
         case SportMLS:
-            return RESOURCE_ID_Mls_25; // Fixed casing to match CloudPebble
+            return RESOURCE_ID_Mls_25; 
         case SportRugby:
-            return RESOURCE_ID_Rugby_25; // Fixed casing to match CloudPebble
+            return RESOURCE_ID_Rugby_25; 
         case SportCricket:
-            return RESOURCE_ID_Cricket_25; // Fixed casing to match CloudPebble
+            return RESOURCE_ID_Cricket_25; 
+        case SportTennis:
+            return RESOURCE_ID_IMAGE_SPORT_TENNIS25;
+        case SportAFL:
+            return RESOURCE_ID_IMAGE_SPORT_AFL25;
+        case SportMMA:
+            return RESOURCE_ID_IMAGE_SPORT_MMA25;
         default:
             return RESOURCE_ID_STAR_25;
     }
@@ -59,7 +71,13 @@ char* sport_get_name(Sport sport) {
             return "Rugby";
         case SportCricket:
             return "Cricket";
+        case SportTennis:
+            return "Tennis";
+        case SportAFL:
+            return "AFL";
+        case SportMMA:
+            return "MMA";
         default:
-            return "Favorite";
+            return "Favorites";
     }
 }

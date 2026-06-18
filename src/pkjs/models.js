@@ -6,31 +6,22 @@ const sports = {
     NBA: 4,
     MLS: 5,
     RUGBY: 6,
-    CRICKET: 7
+    CRICKET: 7,
+    TENNIS: 8,
+    AFL: 9,
+    MMA: 10
 };
 
-const possession = {
-    TEAM1: 0,
-    TEAM2: 1,
-    NONE: 2
-};
+const possession = { TEAM1: 0, TEAM2: 1, NONE: 2 };
+const gameslistdata = { LIST_ITEM: 0, LAST_LIST_ITEM: 1, NO_GAMES: 2, NETWORK_ERROR: 3, INIT_ARRAY: 4 };
+const updategamedata = { UPDATE_GAME: 0, NETWORK_ERROR: 1 };
 
-const gameslistdata = {
-    LIST_ITEM: 0,
-    LAST_LIST_ITEM: 1,
-    NO_GAMES: 2,
-    NETWORK_ERROR: 3
-};
-
-const updategamedata = {
-    UPDATE_GAME: 0,
-    NETWORK_ERROR: 1
-};
-
-function Team(name, id, record) {
-    this.name = name;
+function Team(abbreviation, id, record) {
+    this.abbreviation = abbreviation;
+    this.name = abbreviation;
     this.id = id;
     this.record = record;
+    this.score = "";
 }
 
 function Game(id, sport, team1, score1, team2, score2, possession, time, details, broadcast) {
@@ -44,9 +35,8 @@ function Game(id, sport, team1, score1, team2, score2, possession, time, details
     this.time = time;
     this.details = details;
     this.broadcast = broadcast;
-    this.isFavorite = function(favoriteTeam) {
-        return favoriteTeam.sport == sport && (favoriteTeam.teamID == team1.id || favoriteTeam.teamID == team2.id);
-    };
+    this.startTime = null;
+    this.league = "";
 }
 
 function FavoriteTeam(sport, teamID) {
@@ -54,12 +44,4 @@ function FavoriteTeam(sport, teamID) {
     this.teamID = teamID;
 }
 
-module.exports = {
-    sports: sports,
-    possession: possession,
-    gameslistdata: gameslistdata,
-    updategamedata: updategamedata,
-    Team: Team,
-    Game: Game,
-    FavoriteTeam: FavoriteTeam
-};
+module.exports = { sports, possession, gameslistdata, updategamedata, Team, Game, FavoriteTeam };

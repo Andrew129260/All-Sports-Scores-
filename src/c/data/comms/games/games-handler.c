@@ -4,60 +4,61 @@
 #include "../../model/models.h"
 
 static int current_request = -1;
-static int games_count;
-static Game **games;
+static int games_count = 0;
+static Game **games = NULL;
 
 static GameListSuccessCallback on_games_success;
 static GameListErrorCallback on_games_error;
-
 static GameUpdateCallback on_game_update;
 
- static void request_local(Sport sport) {
-    switch (sport) {
-    case SportNFL:
-        printf("getting games for NFL");
-        DictionaryIterator *game1;
-        AppMessageResult result1 = app_message_outbox_begin(&game1);
-        dict_write_tuplet(game1, &TupletInteger(MESSAGE_KEY_REQUEST_ID, current_request));
-        dict_write_tuplet(game1, &TupletInteger(MESSAGE_KEY_SEND_GAME_LIST, GamesListLastItem));
-        dict_write_tuplet(game1, &TupletInteger(MESSAGE_KEY_SEND_GAME_ID, 123));
-        dict_write_tuplet(game1, &TupletInteger(MESSAGE_KEY_SEND_GAME_SPORT, SportNFL));
-        dict_write_tuplet(game1, &TupletInteger(MESSAGE_KEY_SEND_GAME_TEAM_1_ID, 1));
-        dict_write_tuplet(game1, &TupletCString(MESSAGE_KEY_SEND_GAME_TEAM_1_NAME, "DEN"));
-        dict_write_tuplet(game1, &TupletCString(MESSAGE_KEY_SEND_GAME_TEAM_1_SCORE, "17"));
-        dict_write_tuplet(game1, &TupletCString(MESSAGE_KEY_SEND_GAME_TEAM_1_RECORD, "5-11"));
-        dict_write_tuplet(game1, &TupletInteger(MESSAGE_KEY_SEND_GAME_TEAM_1_FAVORITE, true));
-        dict_write_tuplet(game1, &TupletInteger(MESSAGE_KEY_SEND_GAME_TEAM_2_ID, 2));
-        dict_write_tuplet(game1, &TupletCString(MESSAGE_KEY_SEND_GAME_TEAM_2_NAME, "NYJ"));
-        dict_write_tuplet(game1, &TupletCString(MESSAGE_KEY_SEND_GAME_TEAM_2_SCORE, "10"));
-        dict_write_tuplet(game1, &TupletCString(MESSAGE_KEY_SEND_GAME_TEAM_2_RECORD, "2-14"));
-        dict_write_tuplet(game1, &TupletInteger(MESSAGE_KEY_SEND_GAME_TEAM_2_FAVORITE, false));
-        dict_write_tuplet(game1, &TupletInteger(MESSAGE_KEY_SEND_GAME_POSSESSION, Team1));
-        dict_write_tuplet(game1, &TupletCString(MESSAGE_KEY_SEND_GAME_TIME, "13:42 4th"));
-        dict_write_tuplet(game1, &TupletCString(MESSAGE_KEY_SEND_GAME_DETAILS, "3rd & 8 - DEN 37"));
-        dict_write_tuplet(game1, &TupletCString(MESSAGE_KEY_SEND_GAME_BROADCAST, "CBS")); // Added to mock data
-        handle_games_recieved(game1);
-        break;
-    default:
-        printf("getting games for other");
-        DictionaryIterator *game;
-        AppMessageResult result = app_message_outbox_begin(&game);
-        dict_write_tuplet(game, &TupletInteger(MESSAGE_KEY_REQUEST_ID, current_request));
-        dict_write_tuplet(game, &TupletInteger(MESSAGE_KEY_SEND_GAME_LIST, GamesListNoGames));
-        handle_games_recieved(game);
-        break;
+static char empty_string[] = "";
+
+#define GAMES_LIST_INIT_ARRAY 4
+
+static void safe_free(char *str) {
+    if (str != NULL && str != empty_string) {
+        free(str);
     }
-} 
+}
 
-void handle_request_games(Sport sport, GameListSuccessCallback on_success, GameListErrorCallback on_error) {
+static void clear_game(Game *game) {
+    if (game == NULL) return;
+    safe_free(game->league); 
+    safe_free(game->team1.name);
+    safe_free(game->team1.score);
+    safe_free(game->team1.record);
+    safe_free(game->team2.name);
+    safe_free(game->team2.score);
+    safe_free(game->team2.record);
+    safe_free(game->time);
+    safe_free(game->summary);
+    safe_free(game->details);
+    safe_free(game->broadcast); 
+    free(game);
+}
 
-    if(games != NULL) {
-        on_success(games_count, games);
+static void free_games_array() {
+    if (games != NULL) {
+        for (int i = 0; i < games_count; i++) {
+            clear_game(games[i]);
+        } 
+        free(games);
+        games = NULL;
     }
+    games_count = 0;
+}
 
+void handle_clear_games() {
+    current_request = -1;
+    free_games_array();
+    on_games_success = NULL;
+    on_games_error = NULL;
+}
+
+void handle_request_games(Sport sport, int league_index, GameListSuccessCallback on_success, GameListErrorCallback on_error) {
+    handle_clear_games();
     int request_id = rand();
-    printf("getting games for %s", sport_get_name(sport));
-
+    
     DictionaryIterator *out_iter;
     AppMessageResult result = app_message_outbox_begin(&out_iter);
 
@@ -68,30 +69,29 @@ void handle_request_games(Sport sport, GameListSuccessCallback on_success, GameL
         Tuplet request_id_tuple = TupletInteger(MESSAGE_KEY_REQUEST_ID, request_id);
         dict_write_tuplet(out_iter, &request_id_tuple);
 
+        Tuplet league_index_tuple = TupletInteger(MESSAGE_KEY_LEAGUE_INDEX, league_index);
+        dict_write_tuplet(out_iter, &league_index_tuple);
+
         result = app_message_outbox_send();
 
         if(result != APP_MSG_OK) {
-            APP_LOG(APP_LOG_LEVEL_ERROR, "Error sending the outbox: %d", (int)result);
-            on_error(ConnectionError);
+            APP_LOG(APP_LOG_LEVEL_ERROR, "Error sending outbox: %d", (int)result);
+            if(on_error) on_error(ConnectionError);
         } else {
             current_request = request_id;
             on_games_success = on_success;
             on_games_error = on_error;
         }
-        
     } else {
-        APP_LOG(APP_LOG_LEVEL_ERROR, "Error preparing the outbox: %d", (int)result);
-        on_error(ConnectionError);
+        APP_LOG(APP_LOG_LEVEL_ERROR, "Error preparing outbox: %d", (int)result);
+        if(on_error) on_error(ConnectionError);
     }
 }
 
 void update_game(Game *game, GameUpdateCallback on_update) {
     int request_id = rand();
-
     DictionaryIterator *out_iter;
     AppMessageResult result = app_message_outbox_begin(&out_iter);
-
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "Updating game %s - %s, id = %d", game->team1.name, game->team2.name, game->id);
 
     if(result == APP_MSG_OK) { 
         Tuplet update_game_id_tuple = TupletInteger(MESSAGE_KEY_UPDATE_GAME_ID, game->id);
@@ -105,176 +105,197 @@ void update_game(Game *game, GameUpdateCallback on_update) {
         result = app_message_outbox_send();
 
         if(result != APP_MSG_OK) {
-            APP_LOG(APP_LOG_LEVEL_ERROR, "Error sending the outbox: %d", (int)result);
-            on_update(GameUpdateNetworkError);
+            if (on_update) on_update(GameUpdateNetworkError);
         } else {
             current_request = request_id;
             on_game_update = on_update;
         }
-        
     } else {
-        APP_LOG(APP_LOG_LEVEL_ERROR, "Error preparing the outbox: %d", (int)result);
-        on_update(GameUpdateNetworkError);
+        if (on_update) on_update(GameUpdateNetworkError);
     }
 }
 
-static void clear_game(Game *game) {
-    free(game->team1.name);
-    free(game->team1.score);
-    free(game->team1.record);
-    free(game->team2.name);
-    free(game->team2.score);
-    free(game->team2.record);
-    free(game->time);
-    free(game->summary);
-    free(game->details);
-    free(game->broadcast); // Ensure broadcast string is freed to prevent memory leaks
-    free(game);
-}
-
-void handle_clear_games() {
-    current_request = -1;
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "clearing %d current games", games_count);
-    for (int i = 0; i < games_count; i++)
-    {
-        APP_LOG(APP_LOG_LEVEL_DEBUG, "freeing game %i", i);
-        APP_LOG(APP_LOG_LEVEL_DEBUG, "games[%i].sport = %i", i, games[i]->sport);
-        Game *game = games[i];
-        APP_LOG(APP_LOG_LEVEL_DEBUG, "games[%d].team1.name = %s", i, game->team1.name);
-        clear_game(game);
-    } 
-    
-    free(games);
-    games = NULL;
-    on_games_success = NULL;
-    on_games_error = NULL;
-    games_count = 0;
-}
-
-static char *memorize_dict_string(const DictionaryIterator *dict, uint32_t key) {
+static char *memorize_dict_string(const DictionaryIterator *dict, uint32_t key, const char* debug_name) {
     Tuple *tuple = dict_find(dict, key);
-    if (!tuple) return NULL; // Added safety check
+    
+    // DATA ARMOR: Reject anything that isn't a string to stop strlen() crashes
+    if (!tuple) {
+        return empty_string;
+    }
+    if (tuple->type != TUPLE_CSTRING) {
+        APP_LOG(APP_LOG_LEVEL_WARNING, "DIAGNOSTIC: Key %s is NOT a string! Type: %d", debug_name, tuple->type);
+        return empty_string;
+    }
+    if (strlen(tuple->value->cstring) == 0) {
+        return empty_string;
+    }
+    
     int len = strlen(tuple->value->cstring);
     char *str = malloc(len + 1);
-    strcpy(str, tuple->value->cstring);
+    
+    if (str != NULL) {
+        strcpy(str, tuple->value->cstring);
+    } else {
+        APP_LOG(APP_LOG_LEVEL_ERROR, "DIAGNOSTIC: MALLOC FAILED for %s (Len: %d)", debug_name, len);
+        return empty_string; 
+    }
+    
     return str;
 }
 
+static int32_t get_dict_int_safe(DictionaryIterator *iter, uint32_t key, int32_t default_val) {
+    Tuple *t = dict_find(iter, key);
+    if (!t) return default_val;
+    switch(t->length) {
+        case 1: return t->value->int8;
+        case 2: return t->value->int16;
+        case 4: return t->value->int32;
+        default: return default_val;
+    }
+}
+
 void game_set(Game *game, DictionaryIterator *iter) {
-    int game_id = dict_find(iter, MESSAGE_KEY_SEND_GAME_ID)->value->int32;
+    if (game == NULL) return;
 
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "recieved games_tuple");
-    int sport = dict_find(iter, MESSAGE_KEY_SEND_GAME_SPORT)->value->int8;
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "sport_tuple = %d", sport);
-
-    char *team_1_name = memorize_dict_string(iter, MESSAGE_KEY_SEND_GAME_TEAM_1_NAME);
-    char *team_2_name = memorize_dict_string(iter, MESSAGE_KEY_SEND_GAME_TEAM_2_NAME);
-
-    int team_1_id = dict_find(iter, MESSAGE_KEY_SEND_GAME_TEAM_1_ID)->value->int8;
-    int team_2_id = dict_find(iter, MESSAGE_KEY_SEND_GAME_TEAM_2_ID)->value->int8;
-
-    char *team_1_score = memorize_dict_string(iter, MESSAGE_KEY_SEND_GAME_TEAM_1_SCORE);
-    char *team_2_score = memorize_dict_string(iter, MESSAGE_KEY_SEND_GAME_TEAM_2_SCORE);
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "DIAGNOSTIC: Parsing ints...");
+    game->id = get_dict_int_safe(iter, MESSAGE_KEY_SEND_GAME_ID, 0);
+    game->sport = get_dict_int_safe(iter, MESSAGE_KEY_SEND_GAME_SPORT, 0);
     
-    char *team_1_record = memorize_dict_string(iter, MESSAGE_KEY_SEND_GAME_TEAM_1_RECORD);
-    char *team_2_record = memorize_dict_string(iter, MESSAGE_KEY_SEND_GAME_TEAM_2_RECORD);
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "DIAGNOSTIC: Parsing strings...");
+    game->league = memorize_dict_string(iter, MESSAGE_KEY_SEND_GAME_LEAGUE, "League"); 
+    char *team_1_name = memorize_dict_string(iter, MESSAGE_KEY_SEND_GAME_TEAM_1_NAME, "Team1Name");
+    char *team_2_name = memorize_dict_string(iter, MESSAGE_KEY_SEND_GAME_TEAM_2_NAME, "Team2Name");
+    char *team_1_score = memorize_dict_string(iter, MESSAGE_KEY_SEND_GAME_TEAM_1_SCORE, "Team1Score");
+    char *team_2_score = memorize_dict_string(iter, MESSAGE_KEY_SEND_GAME_TEAM_2_SCORE, "Team2Score");
 
-    bool team_1_favorite = dict_find(iter, MESSAGE_KEY_SEND_GAME_TEAM_1_FAVORITE)->value->int8;
-    bool team_2_favorite = dict_find(iter, MESSAGE_KEY_SEND_GAME_TEAM_2_FAVORITE)->value->int8;
-
-    int possession = dict_find(iter, MESSAGE_KEY_SEND_GAME_POSSESSION)->value->int8;
-
-    char *time = memorize_dict_string(iter, MESSAGE_KEY_SEND_GAME_TIME);
-    char *details = memorize_dict_string(iter, MESSAGE_KEY_SEND_GAME_DETAILS);
-    
-    // Unpack the new broadcast string
-    char *broadcast = memorize_dict_string(iter, MESSAGE_KEY_SEND_GAME_BROADCAST);
-
-    char *summary = malloc(strlen(team_1_name) + strlen(team_1_score) + strlen(team_2_name) + strlen(team_2_score) + 6);
-    strcpy(summary, team_1_name);
-    strcat(summary, " ");
-    strcat(summary, team_1_score);
-    strcat(summary, " - ");
-    strcat(summary, team_2_score);
-    strcat(summary, " ");
-    strcat(summary, team_2_name);
-
-    game->id = game_id;
-    game->sport = sport;
     game->team1 = (Team) {
         .name = team_1_name,
         .score = team_1_score,
-        .id = team_1_id,
-        .favorite = team_1_favorite,
-        .record = team_1_record,
+        .id = get_dict_int_safe(iter, MESSAGE_KEY_SEND_GAME_TEAM_1_ID, 0),
+        .favorite = get_dict_int_safe(iter, MESSAGE_KEY_SEND_GAME_TEAM_1_FAVORITE, 0),
+        .record = memorize_dict_string(iter, MESSAGE_KEY_SEND_GAME_TEAM_1_RECORD, "Team1Record"),
     };
+    
     game->team2 = (Team) {
         .name = team_2_name,
         .score = team_2_score,
-        .id = team_2_id,
-        .favorite = team_2_favorite,
-        .record = team_2_record,
+        .id = get_dict_int_safe(iter, MESSAGE_KEY_SEND_GAME_TEAM_2_ID, 0),
+        .favorite = get_dict_int_safe(iter, MESSAGE_KEY_SEND_GAME_TEAM_2_FAVORITE, 0),
+        .record = memorize_dict_string(iter, MESSAGE_KEY_SEND_GAME_TEAM_2_RECORD, "Team2Record"),
     };
-    game->possession = possession;
-    game->time = time;
-    game->details = details;
-    game->summary = summary;
-    game->broadcast = broadcast; // Assign the broadcast string to the Game struct
+    
+    game->possession = get_dict_int_safe(iter, MESSAGE_KEY_SEND_GAME_POSSESSION, 2); 
+    game->time = memorize_dict_string(iter, MESSAGE_KEY_SEND_GAME_TIME, "Time");
+    game->details = memorize_dict_string(iter, MESSAGE_KEY_SEND_GAME_DETAILS, "Details");
+    game->broadcast = memorize_dict_string(iter, MESSAGE_KEY_SEND_GAME_BROADCAST, "Broadcast");
+
+    #if defined(PBL_ROUND)
+        APP_LOG(APP_LOG_LEVEL_DEBUG, "DIAGNOSTIC: Building round summary string...");
+        char *summary = malloc(strlen(team_1_name) + strlen(team_1_score) + strlen(team_2_name) + strlen(team_2_score) + 6);
+        if (summary != NULL) {
+            strcpy(summary, team_1_name);
+            strcat(summary, " ");
+            strcat(summary, team_1_score);
+            strcat(summary, " - ");
+            strcat(summary, team_2_score);
+            strcat(summary, " ");
+            strcat(summary, team_2_name);
+            game->summary = summary;
+        } else {
+            game->summary = empty_string;
+        }
+    #else
+        game->summary = empty_string;
+    #endif
+    
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "DIAGNOSTIC: Game %d parsed successfully.", games_count);
 }
 
 void handle_games_recieved(DictionaryIterator *iter) {
-    int request_id = dict_find(iter, MESSAGE_KEY_REQUEST_ID)->value->int32;
+    int request_id = get_dict_int_safe(iter, MESSAGE_KEY_REQUEST_ID, 0);
 
     if (request_id != current_request){ 
         return;
     }
 
-    GamesListState data = dict_find(iter, MESSAGE_KEY_SEND_GAME_LIST)->value->int8;
+    GamesListState data = get_dict_int_safe(iter, MESSAGE_KEY_SEND_GAME_LIST, GamesListNetworkError);
+
+    APP_LOG(APP_LOG_LEVEL_INFO, "--> RECV Item. Index: %d, State: %d, Free RAM: %d", games_count, data, (int)heap_bytes_free());
 
     if (data == GamesListNoGames) {
-        on_games_error(NoGames);
+        if(on_games_error) on_games_error(NoGames);
         return;
     }
     if (data == GamesListNetworkError) {
-        on_games_error(NetworkError);
+        if(on_games_error) on_games_error(NetworkError);
         return;
     }
 
-    games = realloc(games, (games_count + 1) * sizeof(Game*));
-    games[games_count] = malloc(sizeof(Game));
+    if (data == GAMES_LIST_INIT_ARRAY) {
+        int total_games = get_dict_int_safe(iter, MESSAGE_KEY_SEND_GAME_ID, 0);
+        APP_LOG(APP_LOG_LEVEL_INFO, "DIAGNOSTIC: Init Array. Total expected: %d", total_games);
+        
+        free_games_array(); 
 
-    game_set(games[games_count], iter);
+        if (total_games > 0) {
+            games = malloc(total_games * sizeof(Game*));
+            if (games == NULL) {
+                APP_LOG(APP_LOG_LEVEL_ERROR, "!!! CRITICAL OOM: Array Allocation Failed !!!");
+            }
+        }
+        return;
+    }
 
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "after game creation");
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "games[%d]->team1.name = %s", games_count, games[games_count]->team1.name);
-    games_count++;
+    if (games != NULL) {
+        Game *new_game = malloc(sizeof(Game));
+        if (new_game != NULL) {
+            game_set(new_game, iter);
+            games[games_count] = new_game;
+            games_count++;
+            APP_LOG(APP_LOG_LEVEL_INFO, "DIAGNOSTIC: Stored game. Free RAM: %d", (int)heap_bytes_free());
+        } else {
+            APP_LOG(APP_LOG_LEVEL_ERROR, "!!! CRITICAL OOM: Struct Allocation Failed for game %d !!!", games_count);
+        }
+    }
 
     if (data == GamesListLastItem) {
-        APP_LOG(APP_LOG_LEVEL_DEBUG, "last game, running on_success");
-        on_games_success(games_count, games);
+        APP_LOG(APP_LOG_LEVEL_INFO, "DIAGNOSTIC: Last item received. Triggering UI callback.");
+        if (on_games_success) {
+            on_games_success(games_count, games);
+        } else {
+            APP_LOG(APP_LOG_LEVEL_ERROR, "!!! CRITICAL: UI callback pointer is NULL !!!");
+        }
     }
 }
 
 void handle_game_update_recieved(DictionaryIterator *iter) {
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "handling game update");
-
-    GameUpdateResult data = dict_find(iter, MESSAGE_KEY_SEND_GAME_UPDATE)->value->int8;
+    GameUpdateResult data = get_dict_int_safe(iter, MESSAGE_KEY_SEND_GAME_UPDATE, GameUpdateNetworkError);
 
     if (data == GameUpdateNetworkError) {
-        on_game_update(GameUpdateNetworkError);
+        if (on_game_update) on_game_update(GameUpdateNetworkError);
         return;
     }
 
-    int game_id = dict_find(iter, MESSAGE_KEY_SEND_GAME_ID)->value->int32;
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "handling game update, id = %d", game_id);
+    int game_id = get_dict_int_safe(iter, MESSAGE_KEY_SEND_GAME_ID, 0);
 
     for (int i = 0; i < games_count; i++) {
-        if (games[i]->id == game_id) {
-            clear_game(games[i]);
-            games[i] = malloc(sizeof(Game));
+        if (games[i] != NULL && games[i]->id == game_id) {
+            safe_free(games[i]->league); 
+            safe_free(games[i]->team1.name);
+            safe_free(games[i]->team1.score);
+            safe_free(games[i]->team1.record);
+            safe_free(games[i]->team2.name);
+            safe_free(games[i]->team2.score);
+            safe_free(games[i]->team2.record);
+            safe_free(games[i]->time);
+            safe_free(games[i]->summary);
+            safe_free(games[i]->details);
+            safe_free(games[i]->broadcast); 
+
             game_set(games[i], iter);
-            APP_LOG(APP_LOG_LEVEL_DEBUG, "handling game update, calling callback");
-            on_game_update(GameUpdated);
+
+            if (on_game_update) on_game_update(GameUpdated);
+            return;
         }
     }
 }

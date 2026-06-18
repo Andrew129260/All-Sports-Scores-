@@ -4,7 +4,22 @@
 
 static void score_update_proc(Layer *layer, GContext *ctx) {
     Game *game = *(Game **)layer_get_data(layer);
-    bool has_long_score = strlen(game->team1.score) > 2 || strlen(game->team2.score) > 2;
+    
+    // CRITICAL GUARD: Never attempt to draw if the game data pointer was lost
+    if (game == NULL) {
+        return;
+    }
+
+    // HARDENED GUARDS: Prevent strlen() and graphics layout crashes
+    const char *t1_score = game->team1.score ? game->team1.score : "";
+    const char *t2_score = game->team2.score ? game->team2.score : "";
+    const char *t1_name = game->team1.name ? game->team1.name : "";
+    const char *t2_name = game->team2.name ? game->team2.name : "";
+    const char *t1_rec = game->team1.record ? game->team1.record : "";
+    const char *t2_rec = game->team2.record ? game->team2.record : "";
+    const char *time_str = game->time ? game->time : "";
+
+    bool has_long_score = strlen(t1_score) > 2 || strlen(t2_score) > 2;
 
     GRect layer_bounds = layer_get_bounds(layer);
 
@@ -40,50 +55,50 @@ static void score_update_proc(Layer *layer, GContext *ctx) {
     int half_w = separator_bounds.origin.x;
     int right_x = separator_bounds.origin.x + separator_bounds.size.w;
 
-    bool record_showing = clay_settings.show_record == ShowRecordAlways || (clay_settings.show_record == ShowRecordFinalOnly && strcmp(game->time, "Final")==0);
+    bool record_showing = clay_settings.show_record == ShowRecordAlways || (clay_settings.show_record == ShowRecordFinalOnly && strcmp(time_str, "Final") == 0);
     
     if (record_showing) {
         // Record 1 (Manually centered, left-aligned)
-        GSize rec1_sz = graphics_text_layout_get_content_size(game->team1.record, font_record, GRect(0, 0, half_w, 14), GTextOverflowModeWordWrap, GTextAlignmentLeft);
+        GSize rec1_sz = graphics_text_layout_get_content_size(t1_rec, font_record, GRect(0, 0, half_w, 14), GTextOverflowModeWordWrap, GTextAlignmentLeft);
         GRect rec1_bnds = GRect((half_w / 2) - (rec1_sz.w / 2), 0, rec1_sz.w + 10, 14);
-        graphics_draw_text(ctx, game->team1.record, font_record, rec1_bnds, GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
+        graphics_draw_text(ctx, t1_rec, font_record, rec1_bnds, GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
 
         // Record 2 (Manually centered, left-aligned)
-        GSize rec2_sz = graphics_text_layout_get_content_size(game->team2.record, font_record, GRect(0, 0, half_w, 14), GTextOverflowModeWordWrap, GTextAlignmentLeft);
+        GSize rec2_sz = graphics_text_layout_get_content_size(t2_rec, font_record, GRect(0, 0, half_w, 14), GTextOverflowModeWordWrap, GTextAlignmentLeft);
         GRect rec2_bnds = GRect(right_x + (half_w / 2) - (rec2_sz.w / 2), 0, rec2_sz.w + 10, 14);
-        graphics_draw_text(ctx, game->team2.record, font_record, rec2_bnds, GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
+        graphics_draw_text(ctx, t2_rec, font_record, rec2_bnds, GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
     }
 
     int final_score_y = record_showing ? record_score_y : score_y;
     int score_height = has_long_score ? 30 : 42; 
     
     // Score 1 (Manually centered, left-aligned)
-    GSize sc1_sz = graphics_text_layout_get_content_size(game->team1.score, font_score, GRect(0, 0, half_w, score_height), GTextOverflowModeWordWrap, GTextAlignmentLeft);
+    GSize sc1_sz = graphics_text_layout_get_content_size(t1_score, font_score, GRect(0, 0, half_w, score_height), GTextOverflowModeWordWrap, GTextAlignmentLeft);
     GRect sc1_bnds = GRect((half_w / 2) - (sc1_sz.w / 2), final_score_y, sc1_sz.w + 10, score_height);
-    graphics_draw_text(ctx, game->team1.score, font_score, sc1_bnds, GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
+    graphics_draw_text(ctx, t1_score, font_score, sc1_bnds, GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
 
     // Score 2 (Manually centered, left-aligned)
-    GSize sc2_sz = graphics_text_layout_get_content_size(game->team2.score, font_score, GRect(0, 0, half_w, score_height), GTextOverflowModeWordWrap, GTextAlignmentLeft);
+    GSize sc2_sz = graphics_text_layout_get_content_size(t2_score, font_score, GRect(0, 0, half_w, score_height), GTextOverflowModeWordWrap, GTextAlignmentLeft);
     GRect sc2_bnds = GRect(right_x + (half_w / 2) - (sc2_sz.w / 2), final_score_y, sc2_sz.w + 10, score_height);
-    graphics_draw_text(ctx, game->team2.score, font_score, sc2_bnds, GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
+    graphics_draw_text(ctx, t2_score, font_score, sc2_bnds, GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
 
     int possession_offset = 5;
     int possession_y = record_showing ? 50 : 43;
 
     // Team 1 (Manually centered, left-aligned)
     bool team_1_possession = (game->possession) == Team1;
-    GSize tm1_sz = graphics_text_layout_get_content_size(game->team1.name, font_team, GRect(0, 0, half_w, 26), GTextOverflowModeWordWrap, GTextAlignmentLeft);
+    GSize tm1_sz = graphics_text_layout_get_content_size(t1_name, font_team, GRect(0, 0, half_w, 26), GTextOverflowModeWordWrap, GTextAlignmentLeft);
     GRect tm1_bnds = GRect((half_w / 2) - (tm1_sz.w / 2) - (team_1_possession ? possession_offset : 0), possession_y, tm1_sz.w + 10, 26);
-    graphics_draw_text(ctx, game->team1.name, font_team, tm1_bnds, GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
+    graphics_draw_text(ctx, t1_name, font_team, tm1_bnds, GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
     if (team_1_possession) {
         graphics_fill_circle(ctx, GPoint(tm1_bnds.origin.x + tm1_sz.w + 6 - 2, tm1_bnds.origin.y + tm1_bnds.size.h / 2), 2);
     }
 
     // Team 2 (Manually centered, left-aligned)
     bool team_2_possession = (game->possession) == Team2;
-    GSize tm2_sz = graphics_text_layout_get_content_size(game->team2.name, font_team, GRect(0, 0, half_w, 26), GTextOverflowModeWordWrap, GTextAlignmentLeft);
+    GSize tm2_sz = graphics_text_layout_get_content_size(t2_name, font_team, GRect(0, 0, half_w, 26), GTextOverflowModeWordWrap, GTextAlignmentLeft);
     GRect tm2_bnds = GRect(right_x + (half_w / 2) - (tm2_sz.w / 2) - (team_2_possession ? possession_offset : 0), possession_y, tm2_sz.w + 10, 26);
-    graphics_draw_text(ctx, game->team2.name, font_team, tm2_bnds, GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
+    graphics_draw_text(ctx, t2_name, font_team, tm2_bnds, GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
     if (team_2_possession) {
         graphics_fill_circle(ctx, GPoint(tm2_bnds.origin.x + tm2_sz.w + 6 - 2, tm2_bnds.origin.y + tm2_bnds.size.h / 2), 2);
     }

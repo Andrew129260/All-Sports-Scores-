@@ -17,15 +17,20 @@ Pebble.addEventListener('appmessage', function(e) {
     console.log('Got message: ' + JSON.stringify(dict));
 
     // every appmessage from this watch app should come with an associated request id
-    if (!"REQUEST_ID" in dict) { console.error("No request id!"); return;}
+    if (!("REQUEST_ID" in dict)) { console.error("No request id!"); return;}
     const requestID = dict["REQUEST_ID"];
 
     switch(true) {
         case ("LOAD_GAMES" in dict):
             const sport = dict["LOAD_GAMES"];
-            console.log("LOAD_GAMES, sport = ", sport);
+            
+            // Check if the watch requested a specific folder, otherwise default to null
+            const leagueIndex = ("LEAGUE_INDEX" in dict) ? dict["LEAGUE_INDEX"] : null;
+            console.log("LOAD_GAMES, sport = ", sport, " leagueIndex = ", leagueIndex);
+            
             api.getGames(
                 sport, 
+                leagueIndex, // Pass the new folder index into the API!
                 function(games) {
                     comms.sendGameList(requestID, games);
                 },

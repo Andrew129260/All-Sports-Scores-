@@ -1,5 +1,5 @@
 {
-    "author": "Catalyst Studios",
+    "author": "andrew129260",
     "dependencies": {},
     "keywords": [
         "pebble-app",
@@ -7,9 +7,6 @@
     ],
     "name": "pebble-sports",
     "pebble": {
-        "capabilities": [
-            "configurable"
-        ],
         "displayName": "All Sports Scores",
         "enableMultiJS": true,
         "messageKeys": [
@@ -40,11 +37,31 @@
             "CONFIRM_FAVORITE",
             "CONFIG_LEAGUES",
             "CONFIG_SHOW_RECORDS",
-            "SEND_GAME_BROADCAST"
+            "SEND_GAME_BROADCAST",
+            "SEND_GAME_LEAGUE",
+            "LEAGUE_INDEX"
         ],
         "projectType": "native",
         "resources": {
             "media": [
+                {
+                    "file": "images/afl 16.png",
+                    "name": "IMAGE_SPORT_AFL16",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/afl 25.png",
+                    "name": "IMAGE_SPORT_AFL25",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/app icon 16 .png",
+                    "name": "Appicon16",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
                 {
                     "file": "images/Rugby-25.png",
                     "name": "Rugby_25",
@@ -163,9 +180,39 @@
                 },
                 {
                     "file": "images/Generic-25.png",
-                    "menuIcon": true,
                     "name": "GENERIC_25",
                     "type": "png"
+                },
+                {
+                    "file": "images/tennis 16.png",
+                    "name": "IMAGE_SPORT_TENNIS16",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/mma 25.png",
+                    "name": "IMAGE_SPORT_MMA25",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/tennis 25.png",
+                    "name": "IMAGE_SPORT_TENNIS25",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/mma 16.png",
+                    "name": "IMAGE_SPORT_MMA16",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/app icon 25.png",
+                    "menuIcon": true,
+                    "name": "Appicon25",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
                 }
             ]
         },
@@ -184,5 +231,5 @@
             "watchface": false
         }
     },
-    "version": "3.0.5"
+    "version": "6.0.0"
 }
