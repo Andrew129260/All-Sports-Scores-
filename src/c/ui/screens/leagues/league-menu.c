@@ -69,7 +69,8 @@ static void load_league_folders() {
         case SportCricket:
             s_leagues[0] = "International";
             s_leagues[1] = "IPL";
-            s_num_leagues = 2;
+            s_leagues[2] = "Major League Cricket";
+            s_num_leagues = 3;                     
             break;
         case SportTennis:
             s_leagues[0] = "ATP";

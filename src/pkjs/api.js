@@ -87,8 +87,9 @@ function getEndpointsForSport(sport) {
             { url: base + '/rugby/world-cup', league: "Rugby WC" }
         ];
         case models.sports.CRICKET: return [
-            { url: base + '/cricket/8039', league: "International" }, 
-            { url: base + '/cricket/8048', league: "IPL" }
+            { url: base + '/cricket/8039', league: "International" },
+            { url: base + '/cricket/8048', league: "IPL" },
+           { url: base + '/cricket/1528556', league: "MLC" } 
         ];
         case models.sports.TENNIS: return [
             { url: base + '/tennis/atp', league: "ATP" }, 
@@ -199,10 +200,40 @@ function parseEvent(sport, league, event) {
     const status = competition.status || { type: { name: "STATUS_SCHEDULED", shortDetail: "" } };
 
     const [details, time] = (function(type) {
+        // FIREWALL: Completely isolates Cricket (Sport 7) from all other sports
+        if (sport == 7 || league === "MLC" || league == 2) {
+            let localTime = "";
+            let localDate = "";
+            
+            if (date && !isNaN(date.getTime())) {
+                // If the date object is valid, use your standard date layout
+                localDate = utils.dateToScheduleDate(date);
+                
+                // Pure JS manual time formatting (avoids toLocaleTimeString compatibility quirks)
+                let hours = date.getHours();
+                let minutes = date.getMinutes();
+                let ampm = hours >= 12 ? 'PM' : 'AM';
+                hours = hours % 12;
+                hours = hours ? hours : 12; 
+                minutes = minutes < 10 ? '0' + minutes : minutes;
+                
+                localTime = hours + ':' + minutes + ' ' + ampm;
+            } else {
+                // Fallback if ESPN sends a broken timestamp
+                localDate = "Scheduled";
+                localTime = (status.type && status.type.shortDetail) ? status.type.shortDetail : "Upcoming";
+            }
+            return [localDate, localTime];
+        }
+
+        // Untouched original pipeline for NFL, MLB, NHL, NBA, etc.
         switch (type) {
-            case "STATUS_FINAL": return [utils.dateToScheduleDate(date), "Final"];
-            case "STATUS_SCHEDULED": return [utils.dateToScheduleDate(date), utils.dateToScheduleTime(date)];
-            default: return [gameDetails(sport, competition.situation), ((status.type && status.type.shortDetail) ? status.type.shortDetail : "").replace("- ", "")];
+            case "STATUS_FINAL": 
+                return [utils.dateToScheduleDate(date), "Final"];
+            case "STATUS_SCHEDULED": 
+                return [utils.dateToScheduleDate(date), utils.dateToScheduleTime(date)];
+            default: 
+                return [gameDetails(sport, competition.situation), ((status.type && status.type.shortDetail) ? status.type.shortDetail : "").replace("- ", "")];
         }
     })(status.type ? status.type.name : "STATUS_SCHEDULED");
 
@@ -323,6 +354,12 @@ function insertUserPin(pin) {
         req.open('PUT', 'https://timeline-api.rebble.io/v1/user/pins/' + pin.id, true);
         req.setRequestHeader('Content-Type', 'application/json');
         req.setRequestHeader('X-User-Token', '' + token);
+        
+        // NEW: Listen for the server's response to see if it accepts the pin
+        req.onload = function() {
+            console.log("Timeline API Response: " + req.status + " " + req.responseText);
+        };
+        
         req.send(JSON.stringify(pin));
     }, function(error) {
         console.log('CRITICAL ERROR: Failed to get timeline token: ' + error);
