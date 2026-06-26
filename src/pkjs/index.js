@@ -61,5 +61,19 @@ Pebble.addEventListener('appmessage', function(e) {
             const favoriteTeam = new models.FavoriteTeam(favoriteSport, favoriteTeamID.toString());
             const added = storage.updateFavorite(favoriteTeam);
             comms.sendFavoritesResult(requestID, added);
+
+            // AUTOMATED TIMELINE PUSH:
+            // This force-triggers the API to fetch current games for all favorites 
+            // and pushes them to the timeline immediately.
+            console.log("Favorite changed: Triggering background timeline refresh.");
+            api.getGames(models.sports.FAVORITES, null, 
+                function(games) { 
+                    console.log("Timeline background push triggered by favorite update."); 
+                }, 
+                function(error) { 
+                    console.log("Timeline background push failed."); 
+                }
+            );
+            break;
     }
 });

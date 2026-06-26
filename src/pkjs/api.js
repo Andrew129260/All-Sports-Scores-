@@ -45,6 +45,15 @@ function getFavoriteGames(favorites, onLoad, onError) {
     });
 }
 
+
+// TODO: Update MLC endpoint for 2027 season
+case models.sports.CRICKET: return [
+    { url: base + '/cricket/8039', league: "International" },
+    { url: base + '/cricket/8048', league: "IPL" },
+    { url: base + '/cricket/1528556', league: "MLC" } 
+];
+
+
 function getEndpointsForSport(sport) {
     var base = "https://site.api.espn.com/apis/site/v2/sports";
     switch (sport) {
@@ -89,7 +98,7 @@ function getEndpointsForSport(sport) {
         case models.sports.CRICKET: return [
             { url: base + '/cricket/8039', league: "International" },
             { url: base + '/cricket/8048', league: "IPL" },
-           { url: base + '/cricket/1528556', league: "MLC" } 
+            { url: base + '/cricket/1528556', league: "MLC" } 
         ];
         case models.sports.TENNIS: return [
             { url: base + '/tennis/atp', league: "ATP" }, 
@@ -124,7 +133,8 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
 
     endpoints.forEach(endpoint => {
         var req = new XMLHttpRequest();
-        const fullUrl = endpoint.url + "/scoreboard";
+        // CACHE BUSTER: Add timestamp to URL to force fresh fetch
+        const fullUrl = endpoint.url + "/scoreboard?t=" + Date.now();
         
         req.open('GET', fullUrl);
         req.onload = function () {
@@ -166,6 +176,24 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
                         uniqueGames.push(game);
                     }
                 });
+
+                // --- SMART SORTING SHIELD ---
+                uniqueGames.sort((a, b) => {
+                    let aIsFinal = (a.time && a.time.toLowerCase().indexOf('final') !== -1);
+                    let bIsFinal = (b.time && b.time.toLowerCase().indexOf('final') !== -1);
+
+                    // Push finished games to the bottom
+                    if (aIsFinal && !bIsFinal) return 1;
+                    if (!aIsFinal && bIsFinal) return -1;
+
+                    // Sort chronologically
+                    if (a.startTime && b.startTime) {
+                        return a.startTime.getTime() - b.startTime.getTime();
+                    }
+                    return 0;
+                });
+                // --------------------------------
+
                 onLoad(uniqueGames);
             } else if (hasCriticalError) {
                 onError(); 
@@ -177,10 +205,8 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
 }
 
 function getGame(id, sport, onLoad, onError) {
-    getGamesForSport(
-        sport, 
-        null, 
-        (games) => { 
+    // Also add cache buster to single game updates
+    getGamesForSport(sport, null, (games) => { 
             let foundGame = games.find(g => g.id == id);
             if(foundGame == undefined) {
                 onError();
@@ -206,10 +232,8 @@ function parseEvent(sport, league, event) {
             let localDate = "";
             
             if (date && !isNaN(date.getTime())) {
-                // If the date object is valid, use your standard date layout
                 localDate = utils.dateToScheduleDate(date);
                 
-                // Pure JS manual time formatting (avoids toLocaleTimeString compatibility quirks)
                 let hours = date.getHours();
                 let minutes = date.getMinutes();
                 let ampm = hours >= 12 ? 'PM' : 'AM';
@@ -219,14 +243,12 @@ function parseEvent(sport, league, event) {
                 
                 localTime = hours + ':' + minutes + ' ' + ampm;
             } else {
-                // Fallback if ESPN sends a broken timestamp
                 localDate = "Scheduled";
                 localTime = (status.type && status.type.shortDetail) ? status.type.shortDetail : "Upcoming";
             }
             return [localDate, localTime];
         }
 
-        // Untouched original pipeline for NFL, MLB, NHL, NBA, etc.
         switch (type) {
             case "STATUS_FINAL": 
                 return [utils.dateToScheduleDate(date), "Final"];
@@ -355,7 +377,6 @@ function insertUserPin(pin) {
         req.setRequestHeader('Content-Type', 'application/json');
         req.setRequestHeader('X-User-Token', '' + token);
         
-        // NEW: Listen for the server's response to see if it accepts the pin
         req.onload = function() {
             console.log("Timeline API Response: " + req.status + " " + req.responseText);
         };
