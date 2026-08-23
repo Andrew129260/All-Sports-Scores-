@@ -41,7 +41,6 @@ static void on_games_loaded(int loaded_game_count, Game **loaded_games) {
     
     if (s_error_layer != NULL) layer_set_hidden(s_error_layer, true);
 
-    // THE FIX: Wait until the FINAL game populates the array before tearing down the loading UI!
     if (game_count > 0 && games[game_count - 1] != NULL) {
         refreshing = false;
 
@@ -63,7 +62,6 @@ static void on_games_loaded(int loaded_game_count, Game **loaded_games) {
             s_loading_progress = NULL;
         }
     } else if (game_count == 0) {
-        // If the API returns exactly 0 games, tear down the UI immediately
         refreshing = false;
         
         if(s_menu_layer != NULL) {
@@ -83,11 +81,10 @@ static void on_games_loaded(int loaded_game_count, Game **loaded_games) {
 static void on_games_error(AppError error) {
     game_count = 0;
     games = NULL;
-
     refreshing = false; 
 
     if (s_error_layer != NULL) {
-        layer_set_hidden(s_error_layer, true);
+        layer_set_hidden(s_error_layer, false);
     }
 
     if (s_menu_layer != NULL) {
@@ -276,6 +273,52 @@ static void menu_select_callback(MenuLayer *menu_layer, MenuIndex *cell_index, v
     }
 }
 
+static void up_click_handler(ClickRecognizerRef recognizer, void *context) {
+    if (!s_menu_layer) return;
+    MenuIndex current = menu_layer_get_selected_index(s_menu_layer);
+    MenuIndex next;
+    next.section = 0;
+    
+    uint16_t num_rows = (refreshing) ? 0 : (game_count == 0 ? 1 : game_count);
+    if (num_rows > 0) {
+        if (current.row == 0) {
+            next.row = num_rows - 1;
+        } else {
+            next.row = current.row - 1;
+        }
+        menu_layer_set_selected_index(s_menu_layer, next, MenuRowAlignCenter, true);
+    }
+}
+
+static void down_click_handler(ClickRecognizerRef recognizer, void *context) {
+    if (!s_menu_layer) return;
+    MenuIndex current = menu_layer_get_selected_index(s_menu_layer);
+    MenuIndex next;
+    next.section = 0;
+    
+    uint16_t num_rows = (refreshing) ? 0 : (game_count == 0 ? 1 : game_count);
+    if (num_rows > 0) {
+        if (current.row == num_rows - 1) {
+            next.row = 0;
+        } else {
+            next.row = current.row + 1;
+        }
+        menu_layer_set_selected_index(s_menu_layer, next, MenuRowAlignCenter, true);
+    }
+}
+
+static void select_click_handler(ClickRecognizerRef recognizer, void *context) {
+    if (!s_menu_layer) return;
+    MenuIndex current = menu_layer_get_selected_index(s_menu_layer);
+    menu_select_callback(s_menu_layer, &current, context);
+}
+
+static void games_click_config_provider(void *context) {
+    window_single_repeating_click_subscribe(BUTTON_ID_UP, 100, up_click_handler);
+    window_single_repeating_click_subscribe(BUTTON_ID_DOWN, 100, down_click_handler);
+    window_single_click_subscribe(BUTTON_ID_SELECT, select_click_handler);
+}
+
 static void menu_selection_changed_callback(MenuLayer *menu_layer, MenuIndex new_index, MenuIndex old_index, void *callback_context) {
     if (new_index.row == 0 && old_index.row != 0) {
         if (s_status_bar) layer_set_hidden(status_bar_layer_get_layer(s_status_bar), false);
@@ -310,7 +353,8 @@ static void build_menu_layer(Window *window) {
     });
 
     menu_layer_set_highlight_colors(s_menu_layer, GColorDukeBlue, GColorWhite);
-    menu_layer_set_click_config_onto_window(s_menu_layer, window);
+    window_set_click_config_provider(window, games_click_config_provider);
+    
     layer_add_child(window_layer, menu_layer_get_layer(s_menu_layer));
 
     if (game_count > 0) {
@@ -336,7 +380,7 @@ static void initialise_ui(Window *window)
     status_bar_layer_set_colors(s_status_bar, GColorDukeBlue, GColorWhite);
 
     #if defined(PBL_PLATFORM_APLITE)
-        s_header_data.icon = NULL; // Save RAM on Aplite!
+        s_header_data.icon = NULL; 
     #else
         s_header_data.icon = image_cache_get_sport_icon(s_sport);
     #endif
@@ -411,6 +455,10 @@ static void window_appear(Window *window) {
 
 void show_games_menu(Sport sport, int league_index)
 {
+    if (s_sport != sport || s_league_index != league_index) {
+        s_saved_scroll_pos.section = 0;
+        s_saved_scroll_pos.row = 0;
+    }
     s_league_index = league_index; 
     s_sport = sport;
     
@@ -424,7 +472,9 @@ void show_games_menu(Sport sport, int league_index)
         window_set_window_handlers(gamesWindow, handlers);
     }
     
-    window_stack_push(gamesWindow, true);
+    if (window_stack_get_top_window() != gamesWindow) {
+        window_stack_push(gamesWindow, true);
+    }
 }
 
 void hide_games_menu(void)

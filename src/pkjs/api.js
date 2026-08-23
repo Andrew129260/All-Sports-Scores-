@@ -45,15 +45,6 @@ function getFavoriteGames(favorites, onLoad, onError) {
     });
 }
 
-
-// TODO: Update MLC endpoint for 2027 season
-case models.sports.CRICKET: return [
-    { url: base + '/cricket/8039', league: "International" },
-    { url: base + '/cricket/8048', league: "IPL" },
-    { url: base + '/cricket/1528556', league: "MLC" } 
-];
-
-
 function getEndpointsForSport(sport) {
     var base = "https://site.api.espn.com/apis/site/v2/sports";
     switch (sport) {
@@ -95,8 +86,10 @@ function getEndpointsForSport(sport) {
             { url: base + '/rugby/180659', league: "Six Nations" },
             { url: base + '/rugby/world-cup', league: "Rugby WC" }
         ];
+        // TODO: Update MLC endpoint for 2027 season
         case models.sports.CRICKET: return [
-            { url: base + '/cricket/8039', league: "International" },
+            // API ENGINE FIX: Hit 8039 (General), 8040 (Tests), 8044 (WTC), and 1538621 (WI vs PAK tour) simultaneously
+            { url: [base + '/cricket/8039', base + '/cricket/8040', base + '/cricket/8044', base + '/cricket/1538621'], league: "International" },
             { url: base + '/cricket/8048', league: "IPL" },
             { url: base + '/cricket/1528556', league: "MLC" } 
         ];
@@ -131,10 +124,24 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
         endpoints = [endpoints[leagueIndex]];
     }
 
+    // ARCHITECTURAL UPGRADE: Flatten URLs to allow multiple API calls per single menu folder
+    let fetchTasks = [];
     endpoints.forEach(endpoint => {
-        var req = new XMLHttpRequest();
-        // CACHE BUSTER: Add timestamp to URL to force fresh fetch
-        const fullUrl = endpoint.url + "/scoreboard?t=" + Date.now();
+        let urls = Array.isArray(endpoint.url) ? endpoint.url : [endpoint.url];
+        urls.forEach(u => {
+            fetchTasks.push({ url: u, league: endpoint.league });
+        });
+    });
+
+    if (fetchTasks.length === 0) {
+        onError();
+        return;
+    }
+
+    fetchTasks.forEach(task => {
+        // STRICT SCOPING: Use 'let' instead of 'var' to prevent callback clobbering 
+        let req = new XMLHttpRequest();
+        const fullUrl = task.url + "/scoreboard?t=" + Date.now();
         
         req.open('GET', fullUrl);
         req.onload = function () {
@@ -143,13 +150,14 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
                     try {
                         const sportsData = JSON.parse(req.responseText);
                         if (sportsData.events) {
-                            let games = sportsData.events.map(event => parseEvent(sport, endpoint.league, event)).filter(g => g !== null);
+                            let games = sportsData.events.map(event => parseEvent(sport, task.league, event)).filter(g => g !== null);
                             allGames = allGames.concat(games);
                         }
                     } catch (e) {
                         console.log("JSON Parse Error for: " + fullUrl);
                     }
                 } else if (req.status != 404) {
+                    // We ignore 404s completely so dead arrays (like 8044 missing) don't throw errors
                     hasCriticalError = true;
                 }
                 
@@ -166,7 +174,7 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
     });
 
     function checkCompletion() {
-        if (completedRequests === endpoints.length) {
+        if (completedRequests === fetchTasks.length) {
             if (allGames.length > 0) {
                 const uniqueGames = [];
                 const seenIds = new Set();
@@ -182,11 +190,9 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
                     let aIsFinal = (a.time && a.time.toLowerCase().indexOf('final') !== -1);
                     let bIsFinal = (b.time && b.time.toLowerCase().indexOf('final') !== -1);
 
-                    // Push finished games to the bottom
                     if (aIsFinal && !bIsFinal) return 1;
                     if (!aIsFinal && bIsFinal) return -1;
 
-                    // Sort chronologically
                     if (a.startTime && b.startTime) {
                         return a.startTime.getTime() - b.startTime.getTime();
                     }
@@ -205,7 +211,6 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
 }
 
 function getGame(id, sport, onLoad, onError) {
-    // Also add cache buster to single game updates
     getGamesForSport(sport, null, (games) => { 
             let foundGame = games.find(g => g.id == id);
             if(foundGame == undefined) {

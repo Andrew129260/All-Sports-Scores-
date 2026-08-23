@@ -12,15 +12,12 @@ static HeaderLayer *s_header;
 
 static Sport s_current_sport;
 
-// INCREASED TO 12: We now have 9 soccer leagues, so we need a slightly larger memory block!
 static char* s_leagues[12]; 
 static int s_num_leagues = 0;
 
-// THE FIX: Static permanent memory to prevent stack corruption
 static HeaderData s_header_data;
 
 static void load_league_folders() {
-    // CRITICAL: These indices must perfectly match the getEndpointsForSport array in api.js!
     switch (s_current_sport) {
         case SportNFL:
             s_leagues[0] = "NFL";
@@ -48,7 +45,7 @@ static void load_league_folders() {
             s_leagues[4] = "FIBA Women's WC";
             s_num_leagues = 5;
             break;
-        case SportMLS: // Soccer
+        case SportMLS:
             s_leagues[0] = "MLS";
             s_leagues[1] = "Premier League";
             s_leagues[2] = "La Liga";
@@ -105,8 +102,48 @@ static void menu_draw_row_callback(GContext* ctx, const Layer *cell_layer, MenuI
 }
 
 static void menu_select_callback(MenuLayer *menu_layer, MenuIndex *cell_index, void *data) {
-    // The exact row clicked here is sent back to the phone to match the api.js endpoint array!
     show_games_menu(s_current_sport, cell_index->row);
+}
+
+static void up_click_handler(ClickRecognizerRef recognizer, void *context) {
+    MenuIndex current = menu_layer_get_selected_index(s_menu_layer);
+    MenuIndex next;
+    next.section = 0;
+    
+    if (s_num_leagues > 0) {
+        if (current.row == 0) {
+            next.row = s_num_leagues - 1; 
+        } else {
+            next.row = current.row - 1; 
+        }
+        menu_layer_set_selected_index(s_menu_layer, next, MenuRowAlignCenter, true);
+    }
+}
+
+static void down_click_handler(ClickRecognizerRef recognizer, void *context) {
+    MenuIndex current = menu_layer_get_selected_index(s_menu_layer);
+    MenuIndex next;
+    next.section = 0;
+    
+    if (s_num_leagues > 0) {
+        if (current.row == s_num_leagues - 1) {
+            next.row = 0; 
+        } else {
+            next.row = current.row + 1; 
+        }
+        menu_layer_set_selected_index(s_menu_layer, next, MenuRowAlignCenter, true);
+    }
+}
+
+static void select_click_handler(ClickRecognizerRef recognizer, void *context) {
+    MenuIndex current = menu_layer_get_selected_index(s_menu_layer);
+    menu_select_callback(s_menu_layer, &current, context);
+}
+
+static void league_click_config_provider(void *context) {
+    window_single_repeating_click_subscribe(BUTTON_ID_UP, 100, up_click_handler);
+    window_single_repeating_click_subscribe(BUTTON_ID_DOWN, 100, down_click_handler);
+    window_single_click_subscribe(BUTTON_ID_SELECT, select_click_handler);
 }
 
 static void initialise_ui(Window *window) {
@@ -116,7 +153,6 @@ static void initialise_ui(Window *window) {
     s_status_bar = status_bar_layer_create();
     status_bar_layer_set_colors(s_status_bar, GColorDukeBlue, GColorWhite);
 
-    // Safely assign to the static global block
     s_header_data.icon = image_cache_get_sport_icon(s_current_sport);
     s_header_data.title = sport_get_name(s_current_sport);
     s_header_data.info = NULL;
@@ -137,7 +173,7 @@ static void initialise_ui(Window *window) {
     });
 
     menu_layer_set_highlight_colors(s_menu_layer, GColorDukeBlue, GColorWhite);
-    menu_layer_set_click_config_onto_window(s_menu_layer, window);
+    window_set_click_config_provider(window, league_click_config_provider);
 
     layer_add_child(window_layer, menu_layer_get_layer(s_menu_layer));
     layer_add_child(window_layer, s_header);
@@ -162,8 +198,7 @@ void show_league_menu(Sport sport) {
     s_current_sport = sport;
     load_league_folders();
     
-    // MEMORY IMPROVEMENT: Singleton Window Pattern
-    if(!s_window) {
+    if (!s_window) {
         s_window = window_create();
         WindowHandlers handlers = {0};
         handlers.load = window_load;
@@ -171,10 +206,11 @@ void show_league_menu(Sport sport) {
         window_set_window_handlers(s_window, handlers);
     }
     
-    window_stack_push(s_window, true);
+    if (window_stack_get_top_window() != s_window) {
+        window_stack_push(s_window, true);
+    }
 }
 
 void hide_league_menu(void) {
-    // DO NOT DESTROY THE WINDOW HERE! Let the OS keep the singleton alive to prevent fragmentation.
     window_stack_remove(s_window, true);
 }
