@@ -13,8 +13,6 @@ static MenuLayer *s_menu_layer;
 static StatusBarLayer *s_status_bar;
 static HeaderLayer *s_header;
 
-// --- CALLBACKS ---
-
 static uint16_t menu_get_num_rows_callback(MenuLayer *menu_layer, uint16_t section_index, void *data) {
     return NUM_SPORTS; 
 }
@@ -37,49 +35,6 @@ static void menu_select_callback(MenuLayer *menu_layer, MenuIndex *cell_index, v
         show_league_menu(sport);
     }
 }
-
-// --- CLICK HANDLERS FOR WRAP-AROUND ---
-
-static void up_click_handler(ClickRecognizerRef recognizer, void *context) {
-    MenuIndex current = menu_layer_get_selected_index(s_menu_layer);
-    MenuIndex next;
-    next.section = 0;
-    
-    if (current.row == 0) {
-        next.row = NUM_SPORTS - 1; // We are at top, wrap to bottom
-    } else {
-        next.row = current.row - 1; // Move up one normally
-    }
-    menu_layer_set_selected_index(s_menu_layer, next, MenuRowAlignCenter, true);
-}
-
-static void down_click_handler(ClickRecognizerRef recognizer, void *context) {
-    MenuIndex current = menu_layer_get_selected_index(s_menu_layer);
-    MenuIndex next;
-    next.section = 0;
-    
-    if (current.row == NUM_SPORTS - 1) {
-        next.row = 0; // We are at bottom, wrap to top
-    } else {
-        next.row = current.row + 1; // Move down one normally
-    }
-    menu_layer_set_selected_index(s_menu_layer, next, MenuRowAlignCenter, true);
-}
-
-static void select_click_handler(ClickRecognizerRef recognizer, void *context) {
-    MenuIndex current = menu_layer_get_selected_index(s_menu_layer);
-    // Manually trigger the select behavior
-    menu_select_callback(s_menu_layer, &current, context);
-}
-
-static void sports_click_config_provider(void *context) {
-    // 100ms delay allows for smooth, fast scrolling when holding the button
-    window_single_repeating_click_subscribe(BUTTON_ID_UP, 100, up_click_handler);
-    window_single_repeating_click_subscribe(BUTTON_ID_DOWN, 100, down_click_handler);
-    window_single_click_subscribe(BUTTON_ID_SELECT, select_click_handler);
-}
-
-// --- UI LIFECYCLE ---
 
 static void initialise_ui(Window *window) {
     Layer *window_layer = window_get_root_layer(window);
@@ -107,8 +62,8 @@ static void initialise_ui(Window *window) {
 
     menu_layer_set_highlight_colors(s_menu_layer, GColorDukeBlue, GColorWhite);
     
-    // Register custom click provider instead of auto-binding
-    window_set_click_config_provider(window, sports_click_config_provider);
+    // THE FIX: Hand control completely over to the native Pebble OS!
+    menu_layer_set_click_config_onto_window(s_menu_layer, window);
 
     layer_add_child(window_layer, menu_layer_get_layer(s_menu_layer));
     layer_add_child(window_layer, s_header);
@@ -121,15 +76,11 @@ static void destroy_ui(Window *window) {
     layer_destroy(s_header);
 }
 
-static void handle_window_unload(Window *window) {
-    destroy_ui(window);
-}
-
 void show_sports_menu(void) {
     s_window = window_create();
     window_set_window_handlers(s_window, (WindowHandlers){
         .load = initialise_ui,
-        .unload = handle_window_unload,
+        .unload = destroy_ui,
     });
     window_stack_push(s_window, true);
 }

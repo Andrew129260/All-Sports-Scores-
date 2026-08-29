@@ -177,6 +177,19 @@ static void menu_cell_game_large_draw(GContext* ctx, const Layer *cell_layer, bo
   
     int horz_padding = PBL_IF_ROUND_ELSE(16, 8); 
     int vert_padding = PBL_IF_ROUND_ELSE(4, 0); 
+    int screen_w = cell_bounds.size.w;
+
+    // --- PLATFORM-SPECIFIC BOUNDARIES ---
+    #if defined(PBL_PLATFORM_EMERY) || defined(PBL_PLATFORM_GABBRO)
+        int name_width = 65;
+        int score_width = 110; 
+    #elif defined(PBL_PLATFORM_CHALK)
+        int name_width = 55;
+        int score_width = 85;
+    #else
+        int name_width = 46;
+        int score_width = 74;
+    #endif
 
     const char *t1_name = game->team1.name ? game->team1.name : "";
     const char *t2_name = game->team2.name ? game->team2.name : "";
@@ -185,35 +198,34 @@ static void menu_cell_game_large_draw(GContext* ctx, const Layer *cell_layer, bo
     const char *details = game->details ? game->details : "";
     const char *time_str = game->time ? game->time : "";
 
-    GSize team_1_name_size = graphics_text_layout_get_content_size(t1_name, font_bold, cell_bounds, GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft);
-    GRect team_1_name_bounds = GRect(horz_padding, vert_padding, team_1_name_size.w, 18);
+    // Team 1 Name
+    GRect team_1_name_bounds = GRect(horz_padding, vert_padding, name_width, 18);
     graphics_draw_text(ctx, t1_name, font_bold, team_1_name_bounds, GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
     
-    GSize team_2_name_size = graphics_text_layout_get_content_size(t2_name, font_bold, cell_bounds, GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft);
-    GRect team_2_name_bounds = GRect(horz_padding,vert_padding + 18, team_2_name_size.w, 18);
+    // Team 2 Name
+    GRect team_2_name_bounds = GRect(horz_padding, vert_padding + 18, name_width, 18);
     graphics_draw_text(ctx, t2_name, font_bold, team_2_name_bounds, GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
 
-    GSize team_1_score_size = graphics_text_layout_get_content_size(t1_score, font_bold, cell_bounds, GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft);
-    GRect team_1_score_bounds = GRect(cell_bounds.size.w - horz_padding - team_1_score_size.w, vert_padding, team_1_score_size.w, 18);
-    graphics_draw_text(ctx, t1_score, font_bold, team_1_score_bounds, GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
+    // Team 1 Score
+    GRect team_1_score_bounds = GRect(screen_w - horz_padding - score_width, vert_padding, score_width, 18);
+    graphics_draw_text(ctx, t1_score, font_bold, team_1_score_bounds, GTextOverflowModeTrailingEllipsis, GTextAlignmentRight, NULL);
 
-    GSize team_2_score_size = graphics_text_layout_get_content_size(t2_score, font_bold, cell_bounds, GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft);
-    GRect team_2_score_bounds = GRect(cell_bounds.size.w - horz_padding - team_2_score_size.w, vert_padding + 18, team_2_score_size.w, 18);
-    graphics_draw_text(ctx, t2_score, font_bold, team_2_score_bounds, GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
+    // Team 2 Score
+    GRect team_2_score_bounds = GRect(screen_w - horz_padding - score_width, vert_padding + 18, score_width, 18);
+    graphics_draw_text(ctx, t2_score, font_bold, team_2_score_bounds, GTextOverflowModeTrailingEllipsis, GTextAlignmentRight, NULL);
 
-    GSize details_size = graphics_text_layout_get_content_size(details, font_regular, cell_bounds, GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft);
-    GRect details_bounds = GRect(horz_padding, vert_padding + 36, details_size.w, 14);
+    // Bottom Row
+    GRect details_bounds = GRect(horz_padding, vert_padding + 36, (screen_w / 2) - horz_padding, 14);
     graphics_draw_text(ctx, details, font_regular, details_bounds, GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
+    GRect time_bounds = GRect(screen_w / 2, vert_padding + 36, (screen_w / 2) - horz_padding, 14);
+    graphics_draw_text(ctx, time_str, font_regular, time_bounds, GTextOverflowModeTrailingEllipsis, GTextAlignmentRight, NULL);
 
-    GSize time_size = graphics_text_layout_get_content_size(time_str, font_regular, cell_bounds, GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft);
-    GRect time_bounds = GRect(cell_bounds.size.w - horz_padding - time_size.w, vert_padding + 36, time_size.w, 14);
-    graphics_draw_text(ctx, time_str, font_regular, time_bounds, GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
-
+    // Possession Indicators
     graphics_context_set_fill_color(ctx, selected ? GColorWhite : GColorBlack);
     if (game->possession == Team1) {
-        graphics_fill_circle(ctx, GPoint(horz_padding + team_1_name_size.w + 6, vert_padding + 12), 2);
+        graphics_fill_circle(ctx, GPoint(horz_padding + name_width + 4, vert_padding + 12), 2);
     } else if (game->possession == Team2) {
-        graphics_fill_circle(ctx, GPoint(horz_padding + team_2_name_size.w + 6, vert_padding + 30), 2);
+        graphics_fill_circle(ctx, GPoint(horz_padding + name_width + 4, vert_padding + 30), 2);
     }
 }
 
@@ -263,60 +275,11 @@ static void menu_select_callback(MenuLayer *menu_layer, MenuIndex *cell_index, v
     if(game_count > 0 && games != NULL && cell_index->row < game_count) {
         Game *game = games[cell_index->row];
         if (game != NULL) {
-            const char *name1 = game->team1.name ? game->team1.name : "Unknown";
-            const char *name2 = game->team2.name ? game->team2.name : "Unknown";
-            APP_LOG(APP_LOG_LEVEL_INFO, "Opening %s - %s", name1, name2);
             show_score_screen(game);
         }
     } else if (!refreshing) {
         refresh_games(s_sport);
     }
-}
-
-static void up_click_handler(ClickRecognizerRef recognizer, void *context) {
-    if (!s_menu_layer) return;
-    MenuIndex current = menu_layer_get_selected_index(s_menu_layer);
-    MenuIndex next;
-    next.section = 0;
-    
-    uint16_t num_rows = (refreshing) ? 0 : (game_count == 0 ? 1 : game_count);
-    if (num_rows > 0) {
-        if (current.row == 0) {
-            next.row = num_rows - 1;
-        } else {
-            next.row = current.row - 1;
-        }
-        menu_layer_set_selected_index(s_menu_layer, next, MenuRowAlignCenter, true);
-    }
-}
-
-static void down_click_handler(ClickRecognizerRef recognizer, void *context) {
-    if (!s_menu_layer) return;
-    MenuIndex current = menu_layer_get_selected_index(s_menu_layer);
-    MenuIndex next;
-    next.section = 0;
-    
-    uint16_t num_rows = (refreshing) ? 0 : (game_count == 0 ? 1 : game_count);
-    if (num_rows > 0) {
-        if (current.row == num_rows - 1) {
-            next.row = 0;
-        } else {
-            next.row = current.row + 1;
-        }
-        menu_layer_set_selected_index(s_menu_layer, next, MenuRowAlignCenter, true);
-    }
-}
-
-static void select_click_handler(ClickRecognizerRef recognizer, void *context) {
-    if (!s_menu_layer) return;
-    MenuIndex current = menu_layer_get_selected_index(s_menu_layer);
-    menu_select_callback(s_menu_layer, &current, context);
-}
-
-static void games_click_config_provider(void *context) {
-    window_single_repeating_click_subscribe(BUTTON_ID_UP, 100, up_click_handler);
-    window_single_repeating_click_subscribe(BUTTON_ID_DOWN, 100, down_click_handler);
-    window_single_click_subscribe(BUTTON_ID_SELECT, select_click_handler);
 }
 
 static void menu_selection_changed_callback(MenuLayer *menu_layer, MenuIndex new_index, MenuIndex old_index, void *callback_context) {
@@ -353,7 +316,9 @@ static void build_menu_layer(Window *window) {
     });
 
     menu_layer_set_highlight_colors(s_menu_layer, GColorDukeBlue, GColorWhite);
-    window_set_click_config_provider(window, games_click_config_provider);
+    
+    // THE FIX: Hand control directly to the native OS!
+    menu_layer_set_click_config_onto_window(s_menu_layer, window);
     
     layer_add_child(window_layer, menu_layer_get_layer(s_menu_layer));
 
@@ -441,18 +406,6 @@ static void window_unload(Window *window) {
     destroy_ui(window);
 }
 
-static void window_disappear(Window *window) {
-    #if defined(PBL_PLATFORM_APLITE)
-    destroy_menu_layer();
-    #endif
-}
-
-static void window_appear(Window *window) {
-    #if defined(PBL_PLATFORM_APLITE)
-    build_menu_layer(window);
-    #endif
-}
-
 void show_games_menu(Sport sport, int league_index)
 {
     if (s_sport != sport || s_league_index != league_index) {
@@ -467,8 +420,6 @@ void show_games_menu(Sport sport, int league_index)
         WindowHandlers handlers = {0};
         handlers.load = window_load;
         handlers.unload = window_unload;
-        handlers.appear = window_appear; 
-        handlers.disappear = window_disappear; 
         window_set_window_handlers(gamesWindow, handlers);
     }
     

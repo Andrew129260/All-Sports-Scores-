@@ -14,7 +14,7 @@ function getGames(sport, leagueIndex, onLoad, onError) {
 }
 
 function getFavoriteGames(favorites, onLoad, onError) {
-    if(favorites.length == 0) {
+    if (favorites.length == 0) {
         onLoad([]);
         return;
     }
@@ -31,7 +31,7 @@ function getFavoriteGames(favorites, onLoad, onError) {
             sport,
             null, 
             (games) => {
-                const filtered = games.filter(game => teamIDs.includes(game.team1.id) || teamIDs.includes(game.team2.id) );
+                const filtered = games.filter(game => teamIDs.includes(game.team1.id) || teamIDs.includes(game.team2.id));
                 favoriteGames.push(...filtered);
                 loadedSports.push(sport);
                 
@@ -50,7 +50,7 @@ function getEndpointsForSport(sport) {
     switch (sport) {
         case models.sports.NFL: return [
             { url: base + '/football/nfl', league: "NFL" }, 
-            { url: base + '/football/college-football', league: "NCAAF" },
+            { url: base + '/football/college-football', league: "NCAAF", params: "&groups=80" }, // FBS Group Fix
             { url: base + '/football/ufl', league: "UFL" },
             { url: base + '/football/cfl', league: "CFL" }
         ];
@@ -66,7 +66,7 @@ function getEndpointsForSport(sport) {
         case models.sports.NBA: return [
             { url: base + '/basketball/nba', league: "NBA" }, 
             { url: base + '/basketball/wnba', league: "WNBA" }, 
-            { url: base + '/basketball/mens-college-basketball', league: "NCAAM" },
+            { url: base + '/basketball/mens-college-basketball', league: "NCAAM", params: "&groups=50" }, // D1 Group Fix
             { url: base + '/basketball/fiba.mens.world.cup', league: "FIBA Men" },
             { url: base + '/basketball/fiba.womens.world.cup', league: "FIBA Women" }
         ];
@@ -86,10 +86,8 @@ function getEndpointsForSport(sport) {
             { url: base + '/rugby/180659', league: "Six Nations" },
             { url: base + '/rugby/world-cup', league: "Rugby WC" }
         ];
-        // TODO: Update MLC endpoint for 2027 season
         case models.sports.CRICKET: return [
-            // API ENGINE FIX: Hit 8039 (General), 8040 (Tests), 8044 (WTC), and 1538621 (WI vs PAK tour) simultaneously
-            { url: [base + '/cricket/8039', base + '/cricket/8040', base + '/cricket/8044', base + '/cricket/1538621'], league: "International" },
+            { url: [base + '/cricket/8039', base + '/cricket/8040'], league: "International" },
             { url: base + '/cricket/8048', league: "IPL" },
             { url: base + '/cricket/1528556', league: "MLC" } 
         ];
@@ -124,12 +122,11 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
         endpoints = [endpoints[leagueIndex]];
     }
 
-    // ARCHITECTURAL UPGRADE: Flatten URLs to allow multiple API calls per single menu folder
     let fetchTasks = [];
     endpoints.forEach(endpoint => {
         let urls = Array.isArray(endpoint.url) ? endpoint.url : [endpoint.url];
         urls.forEach(u => {
-            fetchTasks.push({ url: u, league: endpoint.league });
+            fetchTasks.push({ url: u, league: endpoint.league, params: endpoint.params || "" });
         });
     });
 
@@ -138,40 +135,41 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
         return;
     }
 
-    fetchTasks.forEach(task => {
-        // STRICT SCOPING: Use 'let' instead of 'var' to prevent callback clobbering 
-        let req = new XMLHttpRequest();
-        const fullUrl = task.url + "/scoreboard?t=" + Date.now();
-        
-        req.open('GET', fullUrl);
-        req.onload = function () {
-            if (req.readyState == 4) {
-                if (req.status == 200) {
-                    try {
-                        const sportsData = JSON.parse(req.responseText);
-                        if (sportsData.events) {
-                            let games = sportsData.events.map(event => parseEvent(sport, task.league, event)).filter(g => g !== null);
-                            allGames = allGames.concat(games);
+    function executeFetchTasks() {
+        fetchTasks.forEach(task => {
+            let req = new XMLHttpRequest();
+            // Append explicit params cleanly if they exist
+            const fullUrl = task.url + "/scoreboard?t=" + Date.now() + task.params;
+            
+            req.open('GET', fullUrl);
+            req.onload = function () {
+                if (req.readyState == 4) {
+                    if (req.status == 200) {
+                        try {
+                            const sportsData = JSON.parse(req.responseText);
+                            if (sportsData.events) {
+                                let games = sportsData.events.map(event => parseEvent(sport, task.league, event)).filter(g => g !== null);
+                                allGames = allGames.concat(games);
+                            }
+                        } catch (e) {
+                            console.log("JSON Parse Error for: " + fullUrl);
                         }
-                    } catch (e) {
-                        console.log("JSON Parse Error for: " + fullUrl);
+                    } else if (req.status != 404) {
+                        hasCriticalError = true;
                     }
-                } else if (req.status != 404) {
-                    // We ignore 404s completely so dead arrays (like 8044 missing) don't throw errors
-                    hasCriticalError = true;
+                    
+                    completedRequests++;
+                    checkCompletion();
                 }
-                
+            };
+            req.onerror = function () {
+                hasCriticalError = true;
                 completedRequests++;
                 checkCompletion();
-            }
-        };
-        req.onerror = function () {
-            hasCriticalError = true;
-            completedRequests++;
-            checkCompletion();
-        };
-        req.send();
-    });
+            };
+            req.send();
+        });
+    }
 
     function checkCompletion() {
         if (completedRequests === fetchTasks.length) {
@@ -185,7 +183,6 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
                     }
                 });
 
-                // --- SMART SORTING SHIELD ---
                 uniqueGames.sort((a, b) => {
                     let aIsFinal = (a.time && a.time.toLowerCase().indexOf('final') !== -1);
                     let bIsFinal = (b.time && b.time.toLowerCase().indexOf('final') !== -1);
@@ -198,7 +195,6 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
                     }
                     return 0;
                 });
-                // --------------------------------
 
                 onLoad(uniqueGames);
             } else if (hasCriticalError) {
@@ -208,17 +204,56 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
             }
         }
     }
+
+    // Dynamic Discovery: Pre-Flight Check for BOTH Cricket and Rugby
+    if ((sport == models.sports.CRICKET || sport == models.sports.RUGBY) && (leagueIndex === undefined || leagueIndex === null || leagueIndex === 0)) {
+        let sportString = (sport == models.sports.CRICKET) ? "cricket" : "rugby";
+        let headerReq = new XMLHttpRequest();
+        headerReq.open('GET', 'https://site.web.api.espn.com/apis/personalized/v2/scoreboard/header?sport=' + sportString + '&t=' + Date.now());
+        headerReq.onload = function () {
+            if (headerReq.readyState == 4) {
+                if (headerReq.status == 200) {
+                    try {
+                        let headerData = JSON.parse(headerReq.responseText);
+                        if (headerData.sports && headerData.sports.length > 0) {
+                            let activeLeagues = headerData.sports[0].leagues;
+                            if (activeLeagues) {
+                                activeLeagues.forEach(league => {
+                                    if (league.id) {
+                                        let dynamicUrl = "https://site.api.espn.com/apis/site/v2/sports/" + sportString + "/" + league.id;
+                                        if (!fetchTasks.some(t => t.url === dynamicUrl)) {
+                                            console.log("[DYNAMIC DISCOVERY] Added Active " + sportString.toUpperCase() + " Tour ID: " + league.id + " (" + (league.name || "Tour") + ")");
+                                            fetchTasks.push({ url: dynamicUrl, league: league.abbreviation || "International", params: "" });
+                                        }
+                                    }
+                                });
+                            }
+                        }
+                    } catch (e) {
+                        console.log("Dynamic Header Parse Error");
+                    }
+                }
+                executeFetchTasks();
+            }
+        };
+        headerReq.onerror = function () {
+            executeFetchTasks();
+        };
+        headerReq.send();
+    } else {
+        executeFetchTasks();
+    }
 }
 
 function getGame(id, sport, onLoad, onError) {
     getGamesForSport(sport, null, (games) => { 
             let foundGame = games.find(g => g.id == id);
-            if(foundGame == undefined) {
+            if (foundGame == undefined) {
                 onError();
             } else {
                 onLoad(foundGame);
             }
-         },
+        },
         onError);
 }
 
@@ -231,7 +266,6 @@ function parseEvent(sport, league, event) {
     const status = competition.status || { type: { name: "STATUS_SCHEDULED", shortDetail: "" } };
 
     const [details, time] = (function(type) {
-        // FIREWALL: Completely isolates Cricket (Sport 7) from all other sports
         if (sport == 7 || league === "MLC" || league == 2) {
             let localTime = "";
             let localDate = "";
@@ -282,8 +316,16 @@ function parseEvent(sport, league, event) {
     let score2 = status.type.name == "STATUS_SCHEDULED" ? "" : String(competitor2.score || "");
 
     if (sport == models.sports.CRICKET) {
-        if (score1) score1 = score1.split(" (")[0];
-        if (score2) score2 = score2.split(" (")[0];
+        // Trim overs and keep only the latest innings for compact displays
+        if (score1) score1 = score1.split(" (")[0].trim();
+        if (score2) score2 = score2.split(" (")[0].trim();
+
+        if (score1 && score1.indexOf("&") !== -1) {
+            score1 = score1.split("&").pop().trim();
+        }
+        if (score2 && score2.indexOf("&") !== -1) {
+            score2 = score2.split("&").pop().trim();
+        }
     }
 
     const possession = status.type.name != "STATUS_IN_PROGRESS" ? models.possession.NONE : gamePossession(sport, competition.situation, team1, team2);
@@ -325,7 +367,7 @@ function parseEvent(sport, league, event) {
 }
 
 function gameDetails(sport, situation) {
-    if(situation == undefined || situation == null) return ""; 
+    if (situation == undefined || situation == null) return ""; 
     switch (sport) {
         case models.sports.NFL: 
             return situation.downDistanceText || "";
@@ -340,7 +382,7 @@ function gameDetails(sport, situation) {
 }
 
 function gamePossession(sport, situation, team1, team2) {
-    if(situation == undefined || situation == null) return models.possession.NONE; 
+    if (situation == undefined || situation == null) return models.possession.NONE; 
     switch (sport) {
         case models.sports.NFL: 
             return possessionByTeam(situation.possession, team1, team2);
@@ -376,18 +418,18 @@ function getTimelineIcon(sport) {
 }
 
 function insertUserPin(pin) {
-    Pebble.getTimelineToken(function(token) {
+    Pebble.getTimelineToken(function (token) {
         var req = new XMLHttpRequest();
         req.open('PUT', 'https://timeline-api.rebble.io/v1/user/pins/' + pin.id, true);
         req.setRequestHeader('Content-Type', 'application/json');
         req.setRequestHeader('X-User-Token', '' + token);
         
-        req.onload = function() {
+        req.onload = function () {
             console.log("Timeline API Response: " + req.status + " " + req.responseText);
         };
         
         req.send(JSON.stringify(pin));
-    }, function(error) {
+    }, function (error) {
         console.log('CRITICAL ERROR: Failed to get timeline token: ' + error);
     });
 }

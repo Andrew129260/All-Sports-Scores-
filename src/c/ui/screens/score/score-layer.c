@@ -67,50 +67,56 @@ static void score_update_proc(Layer *layer, GContext *ctx) {
     graphics_context_set_fill_color(ctx, GColorBlack);
     graphics_context_set_text_color(ctx, GColorBlack);
     
+    // --- CENTER DIVIDER MATH ---
     GRect separator_bounds = GRect(layer_bounds.size.w / 2 - 1, 12, 2, 48);
+    int half_w = separator_bounds.origin.x; // Strict left half width
+    int right_x = separator_bounds.origin.x + separator_bounds.size.w; // Strict right half origin
     
-    int half_w = separator_bounds.origin.x;
-    int right_x = separator_bounds.origin.x + separator_bounds.size.w;
-
     bool record_showing = clay_settings.show_record == ShowRecordAlways || (clay_settings.show_record == ShowRecordFinalOnly && strcmp(time_str, "Final") == 0);
     
+    // --- DRAW RECORDS ---
     if (record_showing) {
-        GSize rec1_sz = graphics_text_layout_get_content_size(t1_rec, font_record, GRect(0, 0, half_w, 14), GTextOverflowModeWordWrap, GTextAlignmentLeft);
-        GRect rec1_bnds = GRect((half_w / 2) - (rec1_sz.w / 2), 0, rec1_sz.w + 10, 14);
-        graphics_draw_text(ctx, t1_rec, font_record, rec1_bnds, GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
+        GRect rec1_bnds = GRect(0, 0, half_w, 14);
+        graphics_draw_text(ctx, t1_rec, font_record, rec1_bnds, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
 
-        GSize rec2_sz = graphics_text_layout_get_content_size(t2_rec, font_record, GRect(0, 0, half_w, 14), GTextOverflowModeWordWrap, GTextAlignmentLeft);
-        GRect rec2_bnds = GRect(right_x + (half_w / 2) - (rec2_sz.w / 2), 0, rec2_sz.w + 10, 14);
-        graphics_draw_text(ctx, t2_rec, font_record, rec2_bnds, GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
+        GRect rec2_bnds = GRect(right_x, 0, half_w, 14);
+        graphics_draw_text(ctx, t2_rec, font_record, rec2_bnds, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
     }
 
+    // --- DRAW SCORES ---
     int final_score_y = record_showing ? record_score_y : score_y;
     
-    GSize sc1_sz = graphics_text_layout_get_content_size(t1_score, font_score, GRect(0, 0, half_w, score_height), GTextOverflowModeWordWrap, GTextAlignmentLeft);
-    GRect sc1_bnds = GRect((half_w / 2) - (sc1_sz.w / 2), final_score_y, sc1_sz.w + 10, score_height);
-    graphics_draw_text(ctx, t1_score, font_score, sc1_bnds, GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
+    // Lock bounds strictly to their screen half and let SDK auto-center
+    GRect sc1_bnds = GRect(0, final_score_y, half_w, score_height);
+    graphics_draw_text(ctx, t1_score, font_score, sc1_bnds, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
 
-    GSize sc2_sz = graphics_text_layout_get_content_size(t2_score, font_score, GRect(0, 0, half_w, score_height), GTextOverflowModeWordWrap, GTextAlignmentLeft);
-    GRect sc2_bnds = GRect(right_x + (half_w / 2) - (sc2_sz.w / 2), final_score_y, sc2_sz.w + 10, score_height);
-    graphics_draw_text(ctx, t2_score, font_score, sc2_bnds, GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
+    GRect sc2_bnds = GRect(right_x, final_score_y, half_w, score_height);
+    graphics_draw_text(ctx, t2_score, font_score, sc2_bnds, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
 
-    int possession_offset = 5;
+    // --- DRAW TEAM NAMES & POSSESSION ---
     int possession_y = record_showing ? 50 : 43;
-
     bool team_1_possession = (game->possession) == Team1;
-    GSize tm1_sz = graphics_text_layout_get_content_size(t1_name, font_team, GRect(0, 0, half_w, 26), GTextOverflowModeWordWrap, GTextAlignmentLeft);
-    GRect tm1_bnds = GRect((half_w / 2) - (tm1_sz.w / 2) - (team_1_possession ? possession_offset : 0), possession_y, tm1_sz.w + 10, 26);
-    graphics_draw_text(ctx, t1_name, font_team, tm1_bnds, GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
+    bool team_2_possession = (game->possession) == Team2;
+
+    GRect tm1_bnds = GRect(0, possession_y, half_w, 26);
+    graphics_draw_text(ctx, t1_name, font_team, tm1_bnds, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
+    
     if (team_1_possession) {
-        graphics_fill_circle(ctx, GPoint(tm1_bnds.origin.x + tm1_sz.w + 6 - 2, tm1_bnds.origin.y + tm1_bnds.size.h / 2), 2);
+        // Measure text just to position the dot, but cap it so it never crosses the center divider
+        GSize tm1_sz = graphics_text_layout_get_content_size(t1_name, font_team, tm1_bnds, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter);
+        int dot_x = (half_w / 2) + (tm1_sz.w / 2) + 6;
+        if (dot_x > half_w - 3) dot_x = half_w - 3; 
+        graphics_fill_circle(ctx, GPoint(dot_x, possession_y + 13), 2);
     }
 
-    bool team_2_possession = (game->possession) == Team2;
-    GSize tm2_sz = graphics_text_layout_get_content_size(t2_name, font_team, GRect(0, 0, half_w, 26), GTextOverflowModeWordWrap, GTextAlignmentLeft);
-    GRect tm2_bnds = GRect(right_x + (half_w / 2) - (tm2_sz.w / 2) - (team_2_possession ? possession_offset : 0), possession_y, tm2_sz.w + 10, 26);
-    graphics_draw_text(ctx, t2_name, font_team, tm2_bnds, GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
+    GRect tm2_bnds = GRect(right_x, possession_y, half_w, 26);
+    graphics_draw_text(ctx, t2_name, font_team, tm2_bnds, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
+    
     if (team_2_possession) {
-        graphics_fill_circle(ctx, GPoint(tm2_bnds.origin.x + tm2_sz.w + 6 - 2, tm2_bnds.origin.y + tm2_bnds.size.h / 2), 2);
+        GSize tm2_sz = graphics_text_layout_get_content_size(t2_name, font_team, tm2_bnds, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter);
+        int dot_x = right_x + (half_w / 2) + (tm2_sz.w / 2) + 6;
+        if (dot_x > right_x + half_w - 3) dot_x = right_x + half_w - 3;
+        graphics_fill_circle(ctx, GPoint(dot_x, possession_y + 13), 2);
     }
 }
 

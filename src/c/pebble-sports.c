@@ -11,6 +11,11 @@ static void init() {
     // Boot the global cache before any menus open!
     image_cache_init(); 
     
+    // Opt-in to the native Pebble OS touch bridge for MenuLayers!
+    #if defined(PBL_PLATFORM_EMERY) || defined(PBL_PLATFORM_GABBRO)
+    app_touch_navigation_enable(true);
+    #endif
+    
     show_sports_menu();
 }
 

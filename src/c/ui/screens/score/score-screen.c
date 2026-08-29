@@ -1,4 +1,5 @@
 #include "pebble.h"
+#include <stdlib.h> // Needed for abs() math in swipe tracking
 #include "score-screen.h"
 #include "score-layer.h"
 #include "schedule-layer.h"
@@ -62,15 +63,22 @@ static void build_ui(Window *window) {
     int header_height = layer_get_bounds(s_header).size.h;
     bool is_scheduled = (strlen(t1_score) == 0);
 
-    bounds.origin.y += header_height + (is_scheduled ? 12 : 4);
-    bounds.size.h -= header_height + (is_scheduled ? 12 : 4); 
+    // --- PLATFORM-SPECIFIC VERTICAL SPACING ---
+    #if defined(PBL_PLATFORM_EMERY) || defined(PBL_PLATFORM_GABBRO)
+        int vertical_padding = 16; 
+    #else
+        int vertical_padding = 4;  
+    #endif
+
+    bounds.origin.y += header_height + (is_scheduled ? 12 : vertical_padding);
+    bounds.size.h -= header_height + (is_scheduled ? 12 : vertical_padding); 
 
     s_score = is_scheduled ? schedule_layer_create(bounds, s_game) : score_layer_create(bounds, s_game);
     
     if (s_score != NULL) {
         layer_add_child(window_layer, s_score);
-        bounds.origin.y += layer_get_bounds(s_score).size.h + 4;
-        bounds.size.h -= layer_get_bounds(s_score).size.h + 4; 
+        bounds.origin.y += layer_get_bounds(s_score).size.h + vertical_padding;
+        bounds.size.h -= layer_get_bounds(s_score).size.h + vertical_padding; 
     }
 
     if (strlen(details_str) > 0) {
@@ -83,6 +91,7 @@ static void build_ui(Window *window) {
         Layer *details_layer = text_layer_get_layer(s_details);
         layer_set_clips(details_layer, false);
         layer_add_child(window_layer, details_layer);
+        
         bounds.origin.y += 14;
         bounds.size.h -= 14; 
     }
@@ -135,6 +144,35 @@ static void click_config_provider(void *context) {
     window_single_click_subscribe(BUTTON_ID_SELECT, select_click_handler);
 }
 
+// --- SWIPE GESTURE LOGIC ---
+#if defined(PBL_PLATFORM_EMERY) || defined(PBL_PLATFORM_GABBRO)
+static int16_t s_touch_start_x = 0;
+static int16_t s_touch_start_y = 0;
+
+static void score_touch_handler(const TouchEvent *event, void *context) {
+    if (event->type == TouchEvent_Touchdown) {
+        // Record the exact pixel where the finger landed
+        s_touch_start_x = event->x;
+        s_touch_start_y = event->y;
+    } else if (event->type == TouchEvent_Liftoff) {
+        // Calculate the distance traveled (delta X and delta Y)
+        int16_t dx = event->x - s_touch_start_x;
+        int16_t dy = event->y - s_touch_start_y;
+
+        // Check if movement was primarily horizontal and passed a 40px threshold
+        if (abs(dx) > 40 && abs(dx) > abs(dy)) {
+            if (dx > 0) {
+                // Swiped Left-to-Right (Positive X) -> Go Back
+                window_stack_pop(true);
+            } else {
+                // Swiped Right-to-Left (Negative X) -> Open Action Menu
+                select_click_handler(NULL, NULL);
+            }
+        }
+    }
+}
+#endif
+
 static void window_load(Window *window) {
     build_ui(window);
 }
@@ -143,10 +181,24 @@ static void window_unload(Window *window) {
     tear_down_ui();
 }
 
+static void window_disappear(Window *window) {
+    #if defined(PBL_PLATFORM_EMERY) || defined(PBL_PLATFORM_GABBRO)
+    if (touch_service_is_enabled()) {
+        touch_service_unsubscribe();
+    }
+    #endif
+}
+
 static void window_appear(Window *window) {
     #if defined(PBL_PLATFORM_APLITE)
     // Seamlessly rebuild UI when returning from the ActionMenu!
     build_ui(window);
+    #endif
+
+    #if defined(PBL_PLATFORM_EMERY) || defined(PBL_PLATFORM_GABBRO)
+    if (touch_service_is_enabled()) {
+        touch_service_subscribe(score_touch_handler, NULL);
+    }
     #endif
 }
 
@@ -161,6 +213,7 @@ void show_score_screen(Game *game)
         handlers.load = window_load;
         handlers.unload = window_unload;
         handlers.appear = window_appear;
+        handlers.disappear = window_disappear; // Binds the cleanup function
         window_set_window_handlers(scoreWindow, handlers);
         window_set_click_config_provider(scoreWindow, click_config_provider);
     }
