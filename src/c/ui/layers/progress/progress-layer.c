@@ -14,10 +14,6 @@ typedef struct {
     GColor background_color;
 } ProgressLayerData;
 
-// Forward declarations to ensure compiler strictness is satisfied
-static void progress_layer_set_progress(ProgressLayer* progress_layer, int16_t progress_percent);
-static int16_t progress_layer_get_progress(ProgressLayer* progress_layer);
-
 static GRect progress_bar_get_bounds(unsigned int progress_percent, GRect layer_bounds) {
     int width = sin_lookup(progress_percent * 180 / 100) * 2 + 0.5;
     width = 100;
@@ -65,9 +61,8 @@ void init_animation(ProgressLayer *progress_layer, ProgressLayerData *data) {
 
     if (data->prop_anim) { 
         property_animation_destroy(data->prop_anim);
-    }
-    if (data->animation) {
-        animation_destroy(data->animation);
+        data->prop_anim = NULL;
+        data->animation = NULL;
     }
     
     data->prop_anim = property_animation_create(&data->prop_anim_impl, progress_layer, NULL, &to_int);
@@ -113,19 +108,22 @@ ProgressLayer* progress_layer_create(GRect frame) {
 void progress_layer_destroy(ProgressLayer* progress_layer) {
     if (progress_layer) {
         ProgressLayerData *layer_data = (ProgressLayerData*) layer_get_data(progress_layer);
-        animation_destroy(layer_data->animation);
-        property_animation_destroy(layer_data->prop_anim);
+        
+        if (layer_data->prop_anim) {
+            property_animation_destroy(layer_data->prop_anim);
+        }
+        
         layer_destroy(progress_layer);
     }
 }
 
-static void progress_layer_set_progress(ProgressLayer* progress_layer, int16_t progress_percent) {
+void progress_layer_set_progress(ProgressLayer* progress_layer, int16_t progress_percent) {
     ProgressLayerData *data = (ProgressLayerData *)layer_get_data(progress_layer);
     data->progress_percent = MIN(100, progress_percent);
     layer_mark_dirty(progress_layer);
 }
 
-static int16_t progress_layer_get_progress(ProgressLayer* progress_layer) {
+int16_t progress_layer_get_progress(ProgressLayer* progress_layer) {
     ProgressLayerData *data = (ProgressLayerData *)layer_get_data(progress_layer);
     return data->progress_percent;
 }

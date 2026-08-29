@@ -24,8 +24,6 @@ static void error_layer_update_proc(Layer *layer, GContext *ctx) {
 
     GRect summary_bounds = GRect(0, 25 + 18, layer_bounds.size.w, 18);
     graphics_draw_text(ctx, data->summary, fonts_get_system_font(FONT_KEY_GOTHIC_14), summary_bounds, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
-
-
 }
 
 ErrorLayer* error_layer_create(GRect bounds) {
@@ -42,6 +40,13 @@ ErrorLayer* error_layer_create(GRect bounds) {
 
 void error_layer_set_error(ErrorLayer *error_layer, AppError error) {
     ErrorLayerData *data = (ErrorLayerData *) layer_get_data(error_layer);
+    
+    // Destroy the old icon before loading a new one to prevent memory leaks
+    if (data->icon != NULL) {
+        gbitmap_destroy(data->icon);
+        data->icon = NULL;
+    }
+
     switch (error)
     {
         case NoGames:
@@ -68,6 +73,8 @@ void error_layer_set_error(ErrorLayer *error_layer, AppError error) {
 
 void error_layer_destroy(ErrorLayer *error_layer){
     ErrorLayerData *data = (ErrorLayerData *)layer_get_data(error_layer);
-    gbitmap_destroy(data->icon);
+    if (data->icon != NULL) {
+        gbitmap_destroy(data->icon);
+    }
     layer_destroy(error_layer);
 }

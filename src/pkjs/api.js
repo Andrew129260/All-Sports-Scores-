@@ -18,11 +18,13 @@ function getFavoriteGames(favorites, onLoad, onError) {
         onLoad([]);
         return;
     }
+    
     const sportGroups = utils.groupBy(favorites, favoriteItem => favoriteItem.sport);
     const favoriteSports = Object.keys(sportGroups).map(key => parseInt(key));
     var favoriteGames = [];
     var loadedSports = [];
-    
+    var hasError = false;
+
     Object.values(sportGroups).forEach((sportGroup) => {
         const sport = sportGroup[0].sport;
         const teamIDs = sportGroup.map(favoriteItem => favoriteItem.teamID);
@@ -35,12 +37,29 @@ function getFavoriteGames(favorites, onLoad, onError) {
                 favoriteGames.push(...filtered);
                 loadedSports.push(sport);
                 
-                if (favoriteSports.every(sport => loadedSports.includes(sport))) {
-                    updateTimelinePins(favoriteGames);
-                    onLoad(favoriteGames);
+                if (favoriteSports.every(s => loadedSports.includes(s))) {
+                    if (favoriteGames.length > 0 || !hasError) {
+                        updateTimelinePins(favoriteGames);
+                        onLoad(favoriteGames);
+                    } else {
+                        onError();
+                    }
                 }
             },
-            onError 
+            () => {
+                hasError = true;
+                // FIX: Acknowledge completion even if it failed so the watch doesn't hang!
+                loadedSports.push(sport); 
+                
+                if (favoriteSports.every(s => loadedSports.includes(s))) {
+                    if (favoriteGames.length > 0) {
+                        updateTimelinePins(favoriteGames);
+                        onLoad(favoriteGames);
+                    } else {
+                        onError();
+                    }
+                }
+            } 
         );
     });
 }
@@ -50,7 +69,7 @@ function getEndpointsForSport(sport) {
     switch (sport) {
         case models.sports.NFL: return [
             { url: base + '/football/nfl', league: "NFL" }, 
-            { url: base + '/football/college-football', league: "NCAAF", params: "&groups=80" }, // FBS Group Fix
+            { url: base + '/football/college-football', league: "NCAAF", params: "&groups=80" }, 
             { url: base + '/football/ufl', league: "UFL" },
             { url: base + '/football/cfl', league: "CFL" }
         ];
@@ -66,7 +85,7 @@ function getEndpointsForSport(sport) {
         case models.sports.NBA: return [
             { url: base + '/basketball/nba', league: "NBA" }, 
             { url: base + '/basketball/wnba', league: "WNBA" }, 
-            { url: base + '/basketball/mens-college-basketball', league: "NCAAM", params: "&groups=50" }, // D1 Group Fix
+            { url: base + '/basketball/mens-college-basketball', league: "NCAAM", params: "&groups=50" }, 
             { url: base + '/basketball/fiba.mens.world.cup', league: "FIBA Men" },
             { url: base + '/basketball/fiba.womens.world.cup', league: "FIBA Women" }
         ];
@@ -138,7 +157,6 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
     function executeFetchTasks() {
         fetchTasks.forEach(task => {
             let req = new XMLHttpRequest();
-            // Append explicit params cleanly if they exist
             const fullUrl = task.url + "/scoreboard?t=" + Date.now() + task.params;
             
             req.open('GET', fullUrl);
@@ -438,16 +456,27 @@ function updateTimelinePins(games) {
     const now = new Date();
     const future48h = new Date(now.getTime() + (48 * 60 * 60 * 1000));
 
+    // CACHE FIX: Check localStorage to prevent spamming Rebble servers with duplicate pins
+    let pushedPins = [];
+    try { 
+        pushedPins = JSON.parse(localStorage.getItem("pushed_pins")) || []; 
+    } catch(e) {}
+
     games.forEach(game => {
         if (game.startTime && !isNaN(game.startTime.getTime())) {
             if (game.startTime > now && game.startTime < future48h) {
+                let pinId = "game-" + game.id;
+                
+                // SKIPPING: We already sent this to Rebble!
+                if (pushedPins.includes(pinId)) return;
+
                 let bodyText = "Starts at: " + game.time + " (" + game.details + ")";
                 if (game.broadcast) { bodyText += "\nWatch on: " + game.broadcast; }
 
                 let localTimeISO = game.startTime.toISOString();
 
                 var pin = {
-                    "id": "game-" + game.id,
+                    "id": pinId,
                     "time": localTimeISO,
                     "layout": {
                         "type": "genericPin",
@@ -458,10 +487,18 @@ function updateTimelinePins(games) {
                         "largeIcon": getTimelineIcon(game.sport)
                     }
                 };
+                
                 insertUserPin(pin);
+                pushedPins.push(pinId);
             }
         }
     });
+
+    // Keep the cache size healthy so it doesn't blow up the phone's local storage limits
+    if (pushedPins.length > 100) {
+        pushedPins = pushedPins.slice(-100);
+    }
+    localStorage.setItem("pushed_pins", JSON.stringify(pushedPins));
 }
 
 module.exports.getGames = getGames;

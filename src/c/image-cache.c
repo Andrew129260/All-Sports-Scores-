@@ -5,13 +5,14 @@
 static GBitmap *s_sport_icons[NUM_SPORTS];
 
 void image_cache_init(void) {
+    // Initialize the array to NULL, but do NOT load images yet!
     for (int i = 0; i < NUM_SPORTS; i++) {
-        // This runs only ONCE at boot, securing the memory safely
-        s_sport_icons[i] = gbitmap_create_with_resource(sport_get_icon_res_small((Sport)i));
+        s_sport_icons[i] = NULL;
     }
 }
 
 void image_cache_deinit(void) {
+    // Safely destroy only the images that were actually loaded
     for (int i = 0; i < NUM_SPORTS; i++) {
         if (s_sport_icons[i] != NULL) {
             gbitmap_destroy(s_sport_icons[i]);
@@ -21,9 +22,14 @@ void image_cache_deinit(void) {
 }
 
 GBitmap* image_cache_get_sport_icon(Sport sport) {
-    // Safely return the cached image if it falls within our 11 initialized sports
-    if (sport < NUM_SPORTS) {
-        return s_sport_icons[sport]; 
+    if (sport >= NUM_SPORTS) {
+        return NULL; 
     }
-    return NULL;
+
+    // LAZY LOAD: If the image hasn't been loaded into RAM yet, load it now.
+    if (s_sport_icons[sport] == NULL) {
+        s_sport_icons[sport] = gbitmap_create_with_resource(sport_get_icon_res_small((Sport)sport));
+    }
+    
+    return s_sport_icons[sport];
 }

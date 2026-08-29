@@ -5,6 +5,7 @@
 
 static int current_request = -1;
 static int games_count = 0;
+static int max_games = 0; // Tracks the hard limit of the array
 static Game **games = NULL;
 
 static GameListSuccessCallback on_games_success;
@@ -46,6 +47,7 @@ static void free_games_array() {
         games = NULL;
     }
     games_count = 0;
+    max_games = 0; // Reset the limit when memory is freed
 }
 
 void handle_clear_games() {
@@ -118,7 +120,6 @@ void update_game(Game *game, GameUpdateCallback on_update) {
 static char *memorize_dict_string(const DictionaryIterator *dict, uint32_t key, const char* debug_name) {
     Tuple *tuple = dict_find(dict, key);
     
-    // DATA ARMOR: Reject anything that isn't a string to stop strlen() crashes
     if (!tuple) {
         return empty_string;
     }
@@ -239,14 +240,17 @@ void handle_games_recieved(DictionaryIterator *iter) {
 
         if (total_games > 0) {
             games = malloc(total_games * sizeof(Game*));
-            if (games == NULL) {
+            if (games != NULL) {
+                max_games = total_games; // Store the limit
+            } else {
                 APP_LOG(APP_LOG_LEVEL_ERROR, "!!! CRITICAL OOM: Array Allocation Failed !!!");
             }
         }
         return;
     }
 
-    if (games != NULL) {
+    // Strict bounds check to prevent memory corruption
+    if (games != NULL && games_count < max_games) {
         Game *new_game = malloc(sizeof(Game));
         if (new_game != NULL) {
             game_set(new_game, iter);
@@ -256,6 +260,8 @@ void handle_games_recieved(DictionaryIterator *iter) {
         } else {
             APP_LOG(APP_LOG_LEVEL_ERROR, "!!! CRITICAL OOM: Struct Allocation Failed for game %d !!!", games_count);
         }
+    } else if (games != NULL && games_count >= max_games) {
+        APP_LOG(APP_LOG_LEVEL_ERROR, "CRITICAL: Prevented out-of-bounds array write!");
     }
 
     if (data == GamesListLastItem) {
