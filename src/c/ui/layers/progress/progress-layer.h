@@ -7,7 +7,6 @@ typedef Layer ProgressLayer;
 ProgressLayer* progress_layer_create(GRect frame);
 void progress_layer_destroy(ProgressLayer* progress_layer);
 
-// FIX: Removed 'static' to clear compiler warnings
 void progress_layer_set_progress(ProgressLayer* progress_layer, int16_t progress_percent);
 int16_t progress_layer_get_progress(ProgressLayer* progress_layer);
 
