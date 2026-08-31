@@ -60,8 +60,10 @@ function sendGameList(requestID, games) {
             'SEND_GAME_ID': games.length 
         };
 
+        const favorites = storage.storedFavorites();
+
         Pebble.sendAppMessage(initDict, function() {
-            sendGameListItem(requestID, games, 0);
+            sendGameListItem(requestID, games, 0, favorites);
         }, function() {
             console.log('Failed to initialize array on watch');
             sendGameListError(requestID); 
@@ -69,10 +71,9 @@ function sendGameList(requestID, games) {
     }
 }
 
-function sendGameListItem(requestID, games, index) {
+function sendGameListItem(requestID, games, index, favorites) {
     const game = games[index];
 
-    const favorites = storage.storedFavorites();
     const team1Favorite = favorites.some(favoriteTeam => game.sport == favoriteTeam.sport && game.team1.id == favoriteTeam.teamID);
     const team2Favorite = favorites.some(favoriteTeam => game.sport == favoriteTeam.sport && game.team2.id == favoriteTeam.teamID);
     
@@ -103,7 +104,7 @@ function sendGameListItem(requestID, games, index) {
     Pebble.sendAppMessage(dict, function () {
         index++;
         if (index < games.length) {
-            sendGameListItem(requestID, games, index);
+            sendGameListItem(requestID, games, index, favorites);
         }
     }, function () {
         console.log('Item transmission failed at index: ' + index);
