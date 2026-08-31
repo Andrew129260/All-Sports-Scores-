@@ -21,9 +21,9 @@ function getFavoriteGames(favorites, onLoad, onError) {
     
     const sportGroups = utils.groupBy(favorites, favoriteItem => favoriteItem.sport);
     const favoriteSports = Object.keys(sportGroups).map(key => parseInt(key));
-    var favoriteGames = [];
-    var loadedSports = [];
-    var hasError = false;
+    const favoriteGames = [];
+    const loadedSports = [];
+    let hasError = false;
 
     Object.values(sportGroups).forEach((sportGroup) => {
         const sport = sportGroup[0].sport;
