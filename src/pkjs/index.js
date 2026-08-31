@@ -1,7 +1,7 @@
-var models = require('./models');
-var storage = require('./storage');
-var comms = require('./comms');
-var api = require('./api');
+const models = require('./models');
+const storage = require('./storage');
+const comms = require('./comms');
+const api = require('./api');
 
 Pebble.addEventListener("ready", function(e) {
         console.log("Hello world! - Sent from your javascript application.");
@@ -12,7 +12,7 @@ Pebble.addEventListener("ready", function(e) {
 // Get AppMessage events
 Pebble.addEventListener('appmessage', function(e) {
     // Get the dictionary from the message
-    var dict = e.payload;
+    const dict = e.payload;
   
     console.log('Got message: ' + JSON.stringify(dict));
 

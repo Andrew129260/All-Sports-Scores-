@@ -27,8 +27,8 @@ function sendGameList(requestID, games) {
         sendEmptyGameList(requestID);
     } else {
         games.sort(function(a, b) {
-            var weightA = getGameStatusWeight(a);
-            var weightB = getGameStatusWeight(b);
+            const weightA = getGameStatusWeight(a);
+            const weightB = getGameStatusWeight(b);
             
             if (weightA !== weightB) {
                 return weightA - weightB; 
@@ -43,8 +43,8 @@ function sendGameList(requestID, games) {
             }
         });
 
-        var watchInfo = typeof Pebble !== 'undefined' && Pebble.getActiveWatchInfo ? Pebble.getActiveWatchInfo() : null;
-        var isAplite = watchInfo && watchInfo.platform === 'aplite';
+        const watchInfo = typeof Pebble !== 'undefined' && Pebble.getActiveWatchInfo ? Pebble.getActiveWatchInfo() : null;
+        const isAplite = watchInfo && watchInfo.platform === 'aplite';
 
         if (isAplite) {
             const MAX_GAMES = 5; 
@@ -54,7 +54,7 @@ function sendGameList(requestID, games) {
             }
         }
 
-        var initDict = {
+        const initDict = {
             'REQUEST_ID': requestID,
             'SEND_GAME_LIST': models.gameslistdata.INIT_ARRAY, 
             'SEND_GAME_ID': games.length 
@@ -112,7 +112,7 @@ function sendGameListItem(requestID, games, index) {
 }
 
 function sendEmptyGameList(requestID) {
-    var dict = {
+    const dict = {
         'REQUEST_ID': requestID,
         'SEND_GAME_LIST': models.gameslistdata.NO_GAMES
     };
@@ -120,7 +120,7 @@ function sendEmptyGameList(requestID) {
 }
 
 function sendGameListError(requestID) {
-    var dict = {
+    const dict = {
         'REQUEST_ID': requestID,
         'SEND_GAME_LIST': models.gameslistdata.NETWORK_ERROR
     };
@@ -157,7 +157,7 @@ function sendGameUpdate(requestID, game) {
 }
 
 function sendGameUpdateError(requestID) {
-    var dict = {
+    const dict = {
         'REQUEST_ID': requestID,
         'SEND_GAME_UPDATE': models.updategamedata.NETWORK_ERROR
     };
@@ -165,7 +165,7 @@ function sendGameUpdateError(requestID) {
 }
 
 function sendFavoritesResult(requestID, result) {
-    var dict = {
+    const dict = {
         'REQUEST_ID': requestID,
         'CONFIRM_FAVORITE': result
     };

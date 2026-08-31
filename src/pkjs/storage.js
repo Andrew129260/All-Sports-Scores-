@@ -7,7 +7,7 @@ function storedFavorites() {
     }
 }
 function updateFavorite(favoriteTeam) {
-    var currentFavorites = storedFavorites();
+    let currentFavorites = storedFavorites();
     if (currentFavorites.some(ft => ft.sport == favoriteTeam.sport && ft.teamID == favoriteTeam.teamID)) {
         //remove the updating favoriteTeam
         currentFavorites = currentFavorites.filter(ft => ft.sport != favoriteTeam.sport || ft.teamID != favoriteTeam.teamID);

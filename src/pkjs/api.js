@@ -21,9 +21,9 @@ function getFavoriteGames(favorites, onLoad, onError) {
     
     const sportGroups = utils.groupBy(favorites, favoriteItem => favoriteItem.sport);
     const favoriteSports = Object.keys(sportGroups).map(key => parseInt(key));
-    var favoriteGames = [];
-    var loadedSports = [];
-    var hasError = false;
+    let favoriteGames = [];
+    let loadedSports = [];
+    let hasError = false;
 
     Object.values(sportGroups).forEach((sportGroup) => {
         const sport = sportGroup[0].sport;
@@ -65,7 +65,7 @@ function getFavoriteGames(favorites, onLoad, onError) {
 }
 
 function getEndpointsForSport(sport) {
-    var base = "https://site.api.espn.com/apis/site/v2/sports";
+    const base = "https://site.api.espn.com/apis/site/v2/sports";
     switch (sport) {
         case models.sports.NFL: return [
             { url: base + '/football/nfl', league: "NFL" }, 
@@ -365,7 +365,7 @@ function parseEvent(sport, league, event) {
     const t1Id = team1.id || competitor1.id || "0";
     const t2Id = team2.id || competitor2.id || "0";
 
-    var gameObj = new models.Game(
+    const gameObj = new models.Game(
         id,
         sport,
         new models.Team(t1Abbrev.toUpperCase(), t1Id, team1Record),
@@ -448,8 +448,8 @@ function insertUserPin(pin) {
         // If getting the token fails (e.g. offline), STILL send the request
         // with a dummy token. The Pebble app on the phone intercepts
         // requests to timeline-api.rebble.io and creates local pins!
-        var sendRequest = function(token) {
-            var req = new XMLHttpRequest();
+        const sendRequest = function(token) {
+            const req = new XMLHttpRequest();
             req.open('PUT', 'https://timeline-api.rebble.io/v1/user/pins/' + pin.id, true);
             req.setRequestHeader('Content-Type', 'application/json');
             req.setRequestHeader('X-User-Token', '' + token);
@@ -493,7 +493,7 @@ function updateTimelinePins(games) {
 
                 let localTimeISO = game.startTime.toISOString();
 
-                var pin = {
+                const pin = {
                     "id": pinId,
                     "time": localTimeISO,
                     "layout": {
