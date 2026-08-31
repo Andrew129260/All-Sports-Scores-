@@ -177,5 +177,6 @@ module.exports = {
     sendGameListError,
     sendGameUpdate,
     sendGameUpdateError,
-    sendFavoritesResult
+    sendFavoritesResult,
+    getGameStatusWeight
 };
