@@ -85,7 +85,6 @@ static void initialise_ui(Window *window) {
 
     menu_layer_set_highlight_colors(s_menu_layer, GColorDukeBlue, GColorWhite);
     
-    // THE FIX: Hand control directly to the native OS!
     menu_layer_set_click_config_onto_window(s_menu_layer, window);
 
     layer_add_child(window_layer, menu_layer_get_layer(s_menu_layer));
