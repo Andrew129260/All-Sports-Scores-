@@ -1,6 +1,5 @@
 {
     "author": "andrew129260",
-    "dependencies": {},
     "keywords": [
         "pebble-app",
         "sports"
@@ -231,5 +230,23 @@
             "watchface": false
         }
     },
-    "version": "8.0.0"
+    "version": "8.0.0",
+    "description": "This is a fix it project from Andy's original sports app.",
+    "main": "index.js",
+    "scripts": {
+        "test": "jest"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/Andrew129260/All-Sports-Scores-.git"
+    },
+    "license": "ISC",
+    "type": "commonjs",
+    "bugs": {
+        "url": "https://github.com/Andrew129260/All-Sports-Scores-/issues"
+    },
+    "homepage": "https://github.com/Andrew129260/All-Sports-Scores-#readme",
+    "devDependencies": {
+        "jest": "^30.5.0"
+    }
 }
