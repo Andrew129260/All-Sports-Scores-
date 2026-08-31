@@ -4,7 +4,6 @@ var comms = require('./comms');
 var api = require('./api');
 
 Pebble.addEventListener("ready", function(e) {
-        console.log("Hello world! - Sent from your javascript application.");
         Pebble.sendAppMessage({'READY': 1});
     }
 );
