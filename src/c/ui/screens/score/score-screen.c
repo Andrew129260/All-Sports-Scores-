@@ -20,8 +20,8 @@ static TextLayer *s_details;
 static Layer *s_score;
 static HeaderData s_header_data;
 
-// THE FIX: s_game is now global so it persists across memory swaps!
-Game *s_game = NULL; 
+// THE FIX: g_game is now global so it persists across memory swaps!
+Game *g_game = NULL;
 
 // RAM Heist state tracker
 static bool s_ui_built = false;
@@ -30,8 +30,8 @@ static void build_ui(Window *window) {
     if (s_ui_built) return;
     
     // SAFETY GUARD: If the pointer is lost during a memory swap, abort gracefully!
-    if (s_game == NULL) {
-        APP_LOG(APP_LOG_LEVEL_ERROR, "CRITICAL: s_game is NULL. Aborting UI load.");
+    if (g_game == NULL) {
+        APP_LOG(APP_LOG_LEVEL_ERROR, "CRITICAL: g_game is NULL. Aborting UI load.");
         return;
     }
 
@@ -41,17 +41,17 @@ static void build_ui(Window *window) {
     s_status_bar = status_bar_layer_create();
     status_bar_layer_set_colors(s_status_bar, GColorDukeBlue, GColorWhite);
 
-    const char *time_str = s_game->time ? s_game->time : "";
-    const char *details_str = s_game->details ? s_game->details : "";
-    const char *t1_score = s_game->team1.score ? s_game->team1.score : "";
+    const char *time_str = g_game->time ? g_game->time : "";
+    const char *details_str = g_game->details ? g_game->details : "";
+    const char *t1_score = g_game->team1.score ? g_game->team1.score : "";
 
     #if defined(PBL_PLATFORM_APLITE)
         s_header_data.icon = NULL; // Save massive PNG RAM on Aplite!
     #else
-        s_header_data.icon = image_cache_get_sport_icon(s_game->sport);
+        s_header_data.icon = image_cache_get_sport_icon(g_game->sport);
     #endif
     
-    s_header_data.title = sport_get_name(s_game->sport);
+    s_header_data.title = sport_get_name(g_game->sport);
     s_header_data.info = time_str;
     s_header_data.under_status_bar = true;
 
@@ -73,7 +73,7 @@ static void build_ui(Window *window) {
     bounds.origin.y += header_height + (is_scheduled ? 12 : vertical_padding);
     bounds.size.h -= header_height + (is_scheduled ? 12 : vertical_padding); 
 
-    s_score = is_scheduled ? schedule_layer_create(bounds, s_game) : score_layer_create(bounds, s_game);
+    s_score = is_scheduled ? schedule_layer_create(bounds, g_game) : score_layer_create(bounds, g_game);
     
     if (s_score != NULL) {
         layer_add_child(window_layer, s_score);
@@ -132,7 +132,7 @@ static void deferred_action_menu(void *data) {
     tear_down_ui();
     #endif
     
-    game_action_menu_open(s_game);
+    game_action_menu_open(g_game);
 }
 
 static void select_click_handler(ClickRecognizerRef recognizer, void *context) {
@@ -205,7 +205,7 @@ static void window_appear(Window *window) {
 void show_score_screen(Game *game)
 {
     // 1. Assign it first to ensure the pointer is set BEFORE window logic runs
-    s_game = game;
+    g_game = game;
     
     if (!scoreWindow) {
         scoreWindow = window_create();
