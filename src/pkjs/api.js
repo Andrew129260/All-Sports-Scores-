@@ -20,12 +20,23 @@ function getFavoriteGames(favorites, onLoad, onError) {
     }
     
     const sportGroups = utils.groupBy(favorites, favoriteItem => favoriteItem.sport);
-    const favoriteSports = Object.keys(sportGroups).map(key => parseInt(key));
+    const groups = Object.values(sportGroups);
     var favoriteGames = [];
-    var loadedSports = [];
     var hasError = false;
+    var index = 0;
 
-    Object.values(sportGroups).forEach((sportGroup) => {
+    function fetchNextSport() {
+        if (index >= groups.length) {
+            if (favoriteGames.length > 0 || !hasError) {
+                updateTimelinePins(favoriteGames);
+                onLoad(favoriteGames);
+            } else {
+                onError();
+            }
+            return;
+        }
+
+        const sportGroup = groups[index++];
         const sport = sportGroup[0].sport;
         const teamIDs = sportGroup.map(favoriteItem => favoriteItem.teamID);
         
@@ -35,33 +46,16 @@ function getFavoriteGames(favorites, onLoad, onError) {
             (games) => {
                 const filtered = games.filter(game => teamIDs.includes(game.team1.id) || teamIDs.includes(game.team2.id));
                 favoriteGames.push(...filtered);
-                loadedSports.push(sport);
-                
-                if (favoriteSports.every(s => loadedSports.includes(s))) {
-                    if (favoriteGames.length > 0 || !hasError) {
-                        updateTimelinePins(favoriteGames);
-                        onLoad(favoriteGames);
-                    } else {
-                        onError();
-                    }
-                }
+                fetchNextSport();
             },
             () => {
                 hasError = true;
-                // FIX: Acknowledge completion even if it failed so the watch doesn't hang!
-                loadedSports.push(sport); 
-                
-                if (favoriteSports.every(s => loadedSports.includes(s))) {
-                    if (favoriteGames.length > 0) {
-                        updateTimelinePins(favoriteGames);
-                        onLoad(favoriteGames);
-                    } else {
-                        onError();
-                    }
-                }
+                fetchNextSport();
             } 
         );
-    });
+    }
+
+    fetchNextSport();
 }
 
 function getEndpointsForSport(sport) {
