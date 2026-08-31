@@ -134,10 +134,10 @@ Window *result_window_create_favorite(Game *game, MenuAction action, FavoriteCha
     
     if (result != FavoriteChangeFailed) {
         layer_data->command_seq = gdraw_command_sequence_create_with_resource(action == ACTION_TEAM_1 || action == ACTION_TEAM_2 ? RESOURCE_ID_ANIM_CONFIRM : RESOURCE_ID_ANIM_DELETED);
-        strcpy(layer_data->label, "Favorites Updated");
+        snprintf(layer_data->label, 32, "Favorites Updated");
     } else {
         layer_data->command_img = gdraw_command_image_create_with_resource(RESOURCE_ID_ERROR_80);
-        strcpy(layer_data->label, "Update Failed");
+        snprintf(layer_data->label, 32, "Update Failed");
     }
     
     layer_set_update_proc(content_layer, result_layer_update_proc);
@@ -180,11 +180,11 @@ Window *result_window_create_refresh(Game *game, GameUpdateResult result) {
     if (result == GameUpdateNetworkError) {
         layer_data->command_img = gdraw_command_image_create_with_resource(RESOURCE_ID_ERROR_80);
         layer_data->label = malloc(16);
-        strcpy(layer_data->label, "No connection");
+        snprintf(layer_data->label, 16, "No connection");
     } else {
         layer_data->command_img = NULL;
         layer_data->label = malloc(16);
-        strcpy(layer_data->label, "Refreshed");
+        snprintf(layer_data->label, 16, "Refreshed");
     }
     
     layer_set_update_proc(content_layer, result_layer_update_proc);
