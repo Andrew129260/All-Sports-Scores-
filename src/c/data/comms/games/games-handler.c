@@ -192,15 +192,10 @@ void game_set(Game *game, DictionaryIterator *iter) {
 
     #if defined(PBL_ROUND)
         APP_LOG(APP_LOG_LEVEL_DEBUG, "DIAGNOSTIC: Building round summary string...");
-        char *summary = malloc(strlen(team_1_name) + strlen(team_1_score) + strlen(team_2_name) + strlen(team_2_score) + 6);
+        size_t summary_len = strlen(team_1_name) + strlen(team_1_score) + strlen(team_2_name) + strlen(team_2_score) + 6;
+        char *summary = malloc(summary_len);
         if (summary != NULL) {
-            strcpy(summary, team_1_name);
-            strcat(summary, " ");
-            strcat(summary, team_1_score);
-            strcat(summary, " - ");
-            strcat(summary, team_2_score);
-            strcat(summary, " ");
-            strcat(summary, team_2_name);
+            snprintf(summary, summary_len, "%s %s - %s %s", team_1_name, team_1_score, team_2_score, team_2_name);
             game->summary = summary;
         } else {
             game->summary = empty_string;
