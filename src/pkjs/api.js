@@ -436,20 +436,38 @@ function getTimelineIcon(sport) {
 }
 
 function insertUserPin(pin) {
-    Pebble.getTimelineToken(function (token) {
-        var req = new XMLHttpRequest();
-        req.open('PUT', 'https://timeline-api.rebble.io/v1/user/pins/' + pin.id, true);
-        req.setRequestHeader('Content-Type', 'application/json');
-        req.setRequestHeader('X-User-Token', '' + token);
-        
-        req.onload = function () {
-            console.log("Timeline API Response: " + req.status + " " + req.responseText);
+    // Local Pins are supported in newer Pebble apps and work offline
+    if (typeof Pebble.insertTimelinePin === 'function') {
+        Pebble.insertTimelinePin(pin, function() {
+            console.log("Local pin inserted successfully: " + pin.id);
+        }, function(error) {
+            console.log("Error inserting local pin: " + error);
+        });
+    } else {
+        // Fallback: If we can get a timeline token, send it normally.
+        // If getting the token fails (e.g. offline), STILL send the request
+        // with a dummy token. The Pebble app on the phone intercepts
+        // requests to timeline-api.rebble.io and creates local pins!
+        var sendRequest = function(token) {
+            var req = new XMLHttpRequest();
+            req.open('PUT', 'https://timeline-api.rebble.io/v1/user/pins/' + pin.id, true);
+            req.setRequestHeader('Content-Type', 'application/json');
+            req.setRequestHeader('X-User-Token', '' + token);
+
+            req.onload = function () {
+                console.log("Timeline API Response: " + req.status + " " + req.responseText);
+            };
+
+            req.send(JSON.stringify(pin));
         };
-        
-        req.send(JSON.stringify(pin));
-    }, function (error) {
-        console.log('CRITICAL ERROR: Failed to get timeline token: ' + error);
-    });
+
+        Pebble.getTimelineToken(function(token) {
+            sendRequest(token);
+        }, function(error) {
+            console.log('Failed to get timeline token (' + error + '), attempting offline local pin push anyway');
+            sendRequest('offline-dummy-token');
+        });
+    }
 }
 
 function updateTimelinePins(games) {
