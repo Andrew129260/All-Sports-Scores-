@@ -192,13 +192,11 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
     function checkCompletion() {
         if (completedRequests === fetchTasks.length) {
             if (allGames.length > 0) {
-                const uniqueGames = [];
                 const seenIds = new Set();
-                allGames.forEach(game => {
-                    if (!seenIds.has(game.id)) {
-                        seenIds.add(game.id);
-                        uniqueGames.push(game);
-                    }
+                const uniqueGames = allGames.filter(game => {
+                    if (seenIds.has(game.id)) return false;
+                    seenIds.add(game.id);
+                    return true;
                 });
 
                 uniqueGames.sort((a, b) => {
