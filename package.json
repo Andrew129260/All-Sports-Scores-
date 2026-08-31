@@ -1,6 +1,5 @@
 {
     "author": "andrew129260",
-    "dependencies": {},
     "keywords": [
         "pebble-app",
         "sports"
@@ -231,5 +230,11 @@
             "watchface": false
         }
     },
-    "version": "8.0.0"
+    "version": "8.0.0",
+    "scripts": {
+        "test": "jest"
+    },
+    "devDependencies": {
+        "jest": "^29.7.0"
+    }
 }
