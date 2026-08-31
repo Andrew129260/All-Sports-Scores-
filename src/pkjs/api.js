@@ -477,7 +477,10 @@ function updateTimelinePins(games) {
     // CACHE FIX: Check localStorage to prevent spamming Rebble servers with duplicate pins
     let pushedPins = [];
     try { 
-        pushedPins = JSON.parse(localStorage.getItem("pushed_pins")) || []; 
+        let parsed = JSON.parse(localStorage.getItem("pushed_pins"));
+        if (Array.isArray(parsed)) {
+            pushedPins = parsed;
+        }
     } catch(e) {}
 
     games.forEach(game => {
