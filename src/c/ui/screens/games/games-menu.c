@@ -24,7 +24,7 @@ static Layer *s_indicator_layer;
 #endif
 
 static int game_count;
-static Game **games;
+static Game *games;
 static Sport s_sport;
 static int s_league_index = -1; 
 static bool refreshing;
@@ -56,12 +56,12 @@ static void clear_temporary_ui() {
     }
 }
 
-static void on_games_loaded(int loaded_game_count, Game **loaded_games) {
+static void on_games_loaded(int loaded_game_count, Game *loaded_games) {
     game_count = loaded_game_count;
     games = loaded_games;
     clear_temporary_ui();
 
-    if (game_count > 0 && games[game_count - 1] != NULL) {
+    if (game_count > 0 && games != NULL) {
         refreshing = false;
         if(s_menu_layer != NULL) {
             menu_layer_reload_data(s_menu_layer);
@@ -229,16 +229,16 @@ static void menu_draw_row_callback(GContext* ctx, const Layer *cell_layer, MenuI
         graphics_draw_text(ctx, "No games right now.\n\nIt may be the off-season.", fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD), layer_get_bounds(cell_layer), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
         return;
     }
-    if (cell_index->row >= game_count || games[cell_index->row] == NULL) return;
+    if (cell_index->row >= game_count || games == NULL) return;
     bool selected = menu_layer_get_selected_index(s_menu_layer).row == cell_index->row;
 
     #if defined(PBL_RECT)
-        menu_cell_game_large_draw(ctx, cell_layer, selected, games[cell_index->row]);
+        menu_cell_game_large_draw(ctx, cell_layer, selected, &games[cell_index->row]);
     #elif defined(PBL_ROUND)
         if (selected) {
-            menu_cell_game_large_draw(ctx, cell_layer, selected, games[cell_index->row]);
+            menu_cell_game_large_draw(ctx, cell_layer, selected, &games[cell_index->row]);
         } else {
-            menu_cell_game_small_draw(ctx, cell_layer, games[cell_index->row]);
+            menu_cell_game_small_draw(ctx, cell_layer, &games[cell_index->row]);
         }
     #endif
 }
@@ -251,8 +251,8 @@ static void push_score_screen_callback(void *data) {
 }
 
 static void menu_select_callback(MenuLayer *menu_layer, MenuIndex *cell_index, void *callback_context){
-    if(game_count > 0 && games != NULL && cell_index->row < game_count) {
-        s_pending_game = games[cell_index->row];
+    if (game_count > 0 && cell_index->row < game_count && games != NULL) {
+        s_pending_game = &games[cell_index->row];
         if (s_pending_game != NULL) {
             if (s_push_timer != NULL) {
                 app_timer_cancel(s_push_timer);

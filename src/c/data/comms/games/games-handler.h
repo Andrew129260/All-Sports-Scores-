@@ -4,7 +4,7 @@
 #ifndef GAMES_HANDLER_H_
 
 typedef void (*GameListErrorCallback)(AppError error);
-typedef void (*GameListSuccessCallback)(int game_count, Game **games);
+typedef void (*GameListSuccessCallback)(int game_count, Game *games);
 typedef void (*GameUpdateCallback)(GameUpdateResult state);
 
 #endif
