@@ -6,7 +6,7 @@
 static int current_request = -1;
 static int games_count = 0;
 static int max_games = 0; // Tracks the hard limit of the array
-static Game **games = NULL;
+static Game *games = NULL;
 
 static GameListSuccessCallback on_games_success;
 static GameListErrorCallback on_games_error;
@@ -35,13 +35,12 @@ static void clear_game(Game *game) {
     safe_free(game->summary);
     safe_free(game->details);
     safe_free(game->broadcast); 
-    free(game);
 }
 
 static void free_games_array() {
     if (games != NULL) {
         for (int i = 0; i < games_count; i++) {
-            clear_game(games[i]);
+            clear_game(&games[i]);
         } 
         free(games);
         games = NULL;
@@ -235,7 +234,7 @@ void handle_games_recieved(DictionaryIterator *iter) {
         free_games_array(); 
 
         if (total_games > 0) {
-            games = malloc(total_games * sizeof(Game*));
+            games = malloc(total_games * sizeof(Game));
             if (games != NULL) {
                 max_games = total_games; // Store the limit
             } else {
@@ -247,10 +246,9 @@ void handle_games_recieved(DictionaryIterator *iter) {
 
     // Strict bounds check to prevent memory corruption
     if (games != NULL && games_count < max_games) {
-        Game *new_game = malloc(sizeof(Game));
+        Game *new_game = &games[games_count];
         if (new_game != NULL) {
             game_set(new_game, iter);
-            games[games_count] = new_game;
             games_count++;
             APP_LOG(APP_LOG_LEVEL_INFO, "DIAGNOSTIC: Stored game. Free RAM: %d", (int)heap_bytes_free());
         } else {
@@ -281,20 +279,20 @@ void handle_game_update_recieved(DictionaryIterator *iter) {
     int game_id = get_dict_int_safe(iter, MESSAGE_KEY_SEND_GAME_ID, 0);
 
     for (int i = 0; i < games_count; i++) {
-        if (games[i] != NULL && games[i]->id == game_id) {
-            safe_free(games[i]->league); 
-            safe_free(games[i]->team1.name);
-            safe_free(games[i]->team1.score);
-            safe_free(games[i]->team1.record);
-            safe_free(games[i]->team2.name);
-            safe_free(games[i]->team2.score);
-            safe_free(games[i]->team2.record);
-            safe_free(games[i]->time);
-            safe_free(games[i]->summary);
-            safe_free(games[i]->details);
-            safe_free(games[i]->broadcast); 
+        if (games != NULL && games[i].id == game_id) {
+            safe_free(games[i].league);
+            safe_free(games[i].team1.name);
+            safe_free(games[i].team1.score);
+            safe_free(games[i].team1.record);
+            safe_free(games[i].team2.name);
+            safe_free(games[i].team2.score);
+            safe_free(games[i].team2.record);
+            safe_free(games[i].time);
+            safe_free(games[i].summary);
+            safe_free(games[i].details);
+            safe_free(games[i].broadcast);
 
-            game_set(games[i], iter);
+            game_set(&games[i], iter);
 
             if (on_game_update) on_game_update(GameUpdated);
             return;
