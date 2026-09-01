@@ -117,6 +117,7 @@ Pebble.addEventListener('webviewclosed', function(e) {
               if (data.results && data.results.length > 0 && data.results[0].contents && data.results[0].contents.length > 0) {
                   var bestMatch = data.results[0].contents[0];
 
+
                   // Map sport name to ID
                   var sportId = -1;
                   var sportStr = bestMatch.sport;
@@ -124,8 +125,10 @@ Pebble.addEventListener('webviewclosed', function(e) {
                   else if (sportStr === "baseball" && bestMatch.defaultLeagueSlug === "mlb") sportId = models.sports.MLB;
                   else if (sportStr === "hockey" && bestMatch.defaultLeagueSlug === "nhl") sportId = models.sports.NHL;
                   else if (sportStr === "basketball" && bestMatch.defaultLeagueSlug === "nba") sportId = models.sports.NBA;
-                  else if (sportStr === "soccer") sportId = models.sports.MLS;
-                  // (Could add others if supported)
+                  else if (sportStr === "soccer") sportId = models.sports.MLS; // Note: We map all soccer to MLS for this app currently
+                  else if (sportStr === "australian-football") sportId = models.sports.AFL;
+                  else if (sportStr === "cricket") sportId = models.sports.CRICKET;
+                  else if (sportStr === "rugby-league" || sportStr === "rugby-union") sportId = models.sports.RUGBY;
 
                   if (sportId !== -1) {
                       var teamIdStr = bestMatch.uid.split('~t:')[1];
