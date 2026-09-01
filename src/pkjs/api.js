@@ -97,8 +97,7 @@ function getEndpointsForSport(sport) {
             { url: base + '/soccer/ita.1', league: "Serie A" },
             { url: base + '/soccer/mex.1', league: "Liga MX" },
             { url: base + '/soccer/uefa.champions', league: "UEFA Champ" },
-            { url: base + '/soccer/fifa.world', league: "World Cup" },
-            { url: base + '/soccer/fifa.womens.world.cup', league: "Women's WC" }
+            { url: base + '/soccer/fifa.world', league: "World Cup" }
         ];
         case models.sports.RUGBY: return [
             { url: base + '/rugby-league/3', league: "NRL" }, 
@@ -387,6 +386,24 @@ function parseEvent(sport, league, event) {
 
     let score1 = status.type.name == "STATUS_SCHEDULED" ? "" : String(competitor1.score || "");
     let score2 = status.type.name == "STATUS_SCHEDULED" ? "" : String(competitor2.score || "");
+
+    // Tennis matches sometimes omit the main score and only provide linescores (sets won)
+    if (sport == models.sports.TENNIS) {
+        if (!score1 && competitor1.linescores) {
+            let sets = 0;
+            competitor1.linescores.forEach(l => { if (l.winner) sets++; });
+            score1 = sets.toString();
+        }
+        if (!score2 && competitor2.linescores) {
+            let sets = 0;
+            competitor2.linescores.forEach(l => { if (l.winner) sets++; });
+            score2 = sets.toString();
+        }
+        // If it's final or in progress but still no sets won, default to "0" instead of empty string
+        // so the UI knows it's an active/completed game and draws the score layer
+        if (!score1 && status.type.name != "STATUS_SCHEDULED") score1 = "0";
+        if (!score2 && status.type.name != "STATUS_SCHEDULED") score2 = "0";
+    }
 
     if (sport == models.sports.CRICKET) {
         // Trim overs and keep only the latest innings for compact displays
