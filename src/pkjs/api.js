@@ -491,11 +491,8 @@ function getTimelineIcon(sport) {
 function insertUserPin(pin) {
     // Local Pins are supported in newer Pebble apps and work offline
     if (typeof Pebble !== 'undefined' && typeof Pebble.insertTimelinePin === 'function') {
-        Pebble.insertTimelinePin(pin, function() {
-            console.log("Local pin inserted successfully: " + pin.id);
-        }, function(error) {
-            console.log("Error inserting local pin: " + error);
-        });
+        Pebble.insertTimelinePin(pin);
+        console.log("Local pin insertion requested: " + pin.id);
     } else {
         // Fallback: If we can get a timeline token, send it normally.
         // If getting the token fails (e.g. offline), STILL send the request
