@@ -26,6 +26,8 @@
             "SEND_GAME_TEAM_2_ID",
             "SEND_GAME_TEAM_1_RECORD",
             "SEND_GAME_TEAM_2_RECORD",
+            "SEND_GAME_TEAM_1_WINNER",
+            "SEND_GAME_TEAM_2_WINNER",
             "SEND_GAME_TEAM_1_FAVORITE",
             "SEND_GAME_TEAM_2_FAVORITE",
             "SEND_GAME_TEAM_1_SCORE",
