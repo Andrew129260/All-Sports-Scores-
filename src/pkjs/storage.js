@@ -1,6 +1,7 @@
 let cachedFavorites = null;
 
-function storedFavorites() { 
+function storedFavorites(forceReload = false) {
+    if (forceReload) { cachedFavorites = null; }
     if (cachedFavorites !== null) {
         return cachedFavorites;
     }

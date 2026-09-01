@@ -232,7 +232,8 @@
             "watchface": false
         },
         "capabilities": [
-            "timeline"
+            "timeline",
+            "configurable"
         ]
     },
     "version": "8.0.0",
@@ -253,5 +254,8 @@
     "homepage": "https://github.com/Andrew129260/All-Sports-Scores-#readme",
     "devDependencies": {
         "jest": "^30.5.0"
+    },
+    "dependencies": {
+        "@rebble/clay": "^1.1.0"
     }
 }
