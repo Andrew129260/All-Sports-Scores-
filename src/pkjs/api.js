@@ -230,7 +230,16 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
                     return 0;
                 });
 
-                onLoad(uniqueGames);
+                const now = new Date();
+                const futureLimit = new Date(now.getTime() + (14 * 24 * 60 * 60 * 1000));
+                const filteredGames = uniqueGames.filter(game => {
+                    if (game.startTime && !isNaN(game.startTime.getTime())) {
+                        return game.startTime <= futureLimit;
+                    }
+                    return true;
+                });
+
+                onLoad(filteredGames);
             } else if (hasCriticalError) {
                 onError(); 
             } else {
