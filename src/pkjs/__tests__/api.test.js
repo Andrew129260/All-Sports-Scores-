@@ -72,10 +72,10 @@ describe('API Parsing logic', () => {
         xhrMock.onload();
     });
 
-    test('should filter out games scheduled more than 7 days in advance', (done) => {
+    test('should filter out games scheduled more than 14 days in advance', (done) => {
         const now = new Date();
-        const future8Days = new Date(now.getTime() + (8 * 24 * 60 * 60 * 1000));
-        const future2Days = new Date(now.getTime() + (2 * 24 * 60 * 60 * 1000));
+        const future15Days = new Date(now.getTime() + (15 * 24 * 60 * 60 * 1000));
+        const future12Days = new Date(now.getTime() + (12 * 24 * 60 * 60 * 1000));
 
         const fakeData = {
             events: [
@@ -84,7 +84,7 @@ describe('API Parsing logic', () => {
                     competitions: [
                         {
                             id: "far",
-                            date: future8Days.toISOString(),
+                            date: future15Days.toISOString(),
                             competitors: [
                                 { team: { abbreviation: "FAR1" } },
                                 { team: { abbreviation: "FAR2" } }
@@ -98,7 +98,7 @@ describe('API Parsing logic', () => {
                     competitions: [
                         {
                             id: "near",
-                            date: future2Days.toISOString(),
+                            date: future12Days.toISOString(),
                             competitors: [
                                 { team: { abbreviation: "NEAR1" } },
                                 { team: { abbreviation: "NEAR2" } }

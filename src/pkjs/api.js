@@ -231,10 +231,10 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
                 });
 
                 const now = new Date();
-                const nextWeek = new Date(now.getTime() + (7 * 24 * 60 * 60 * 1000));
+                const futureLimit = new Date(now.getTime() + (14 * 24 * 60 * 60 * 1000));
                 const filteredGames = uniqueGames.filter(game => {
                     if (game.startTime && !isNaN(game.startTime.getTime())) {
-                        return game.startTime <= nextWeek;
+                        return game.startTime <= futureLimit;
                     }
                     return true;
                 });
