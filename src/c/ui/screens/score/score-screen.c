@@ -185,6 +185,9 @@ static void window_disappear(Window *window) {
     #if defined(PBL_PLATFORM_EMERY) || defined(PBL_PLATFORM_GABBRO)
     if (touch_service_is_enabled()) {
         touch_service_unsubscribe();
+
+        // Re-enable the system touch bridge for the rest of the menus!
+        app_touch_navigation_enable(true);
     }
     #endif
 }
