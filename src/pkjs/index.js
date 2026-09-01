@@ -3,6 +3,74 @@ var storage = require('./storage');
 var comms = require('./comms');
 var api = require('./api');
 
+var Clay = require('@rebble/clay');
+var clayConfig = require('./config.json');
+var clay = new Clay(clayConfig, null, { autoHandleEvents: false });
+
+Pebble.addEventListener('showConfiguration', function(e) {
+  Pebble.openURL(clay.generateUrl());
+});
+
+Pebble.addEventListener('webviewclosed', function(e) {
+  if (e && !e.response) {
+    return;
+  }
+
+  // Get the keys and values from each config item
+  var dict = clay.getSettings(e.response);
+  console.log("Settings changed: " + JSON.stringify(dict));
+
+  // Handle favorite teams
+  var newFavorites = [];
+
+  // Extract leagues favorite settings
+  const leagues = ['NFL', 'MLB', 'NHL', 'NBA', 'MLS'];
+
+  for (let l of leagues) {
+      const key = 'FAVORITES_' + l;
+      if (dict[key]) {
+          let favs = dict[key];
+          // dict[key] might be an array or string
+          if (!Array.isArray(favs)) {
+              favs = [favs];
+          }
+          for (let val of favs) {
+              if (!val) continue;
+              const parts = val.toString().split(':');
+              if (parts.length === 2) {
+                  newFavorites.push(new models.FavoriteTeam(parseInt(parts[0]), parts[1]));
+              }
+          }
+      }
+      // Remove these from dict before sending to watch (AppMessage) since watch doesn't need them
+      delete dict[key];
+  }
+
+  // Update storage
+  localStorage.setItem('favorites', JSON.stringify(newFavorites));
+  storage.storedFavorites(true); // Maybe add a force reload?
+
+  // Push settings to Pebble watch (leagues and display options)
+  Pebble.sendAppMessage(dict, function(e) {
+    console.log('Sent config data to Pebble');
+  }, function(e) {
+    console.log('Failed to send config data!');
+    console.log(JSON.stringify(e));
+  });
+
+  // Trigger timeline push for new favorites
+  api.getGames(models.sports.FAVORITES, null,
+      function(games) {
+          console.log("Timeline background push triggered by settings update.");
+      },
+      function(error) {
+          console.log("Timeline background push failed.");
+      }
+  );
+});
+
+
+
 Pebble.addEventListener("ready", function(e) {
         Pebble.sendAppMessage({'READY': 1});
     }

@@ -1,9 +1,9 @@
 [
-    { 
-        "type": "heading", 
+    {
+        "type": "heading",
         "defaultValue": "Sports Settings",
         "size": 1
-    }, 
+    },
     {
         "type": "section",
         "items": [
@@ -15,8 +15,678 @@
                 "type": "checkboxgroup",
                 "messageKey": "CONFIG_LEAGUES",
                 "label": "Visible Leagues",
-                "defaultValue": [true, true, true, true],
-                "options": ["NFL", "MLB", "NHL", "NBA"]
+                "defaultValue": [
+                    true,
+                    true,
+                    true,
+                    true
+                ],
+                "options": [
+                    "NFL",
+                    "MLB",
+                    "NHL",
+                    "NBA"
+                ]
+            }
+        ]
+    },
+    {
+        "type": "section",
+        "items": [
+            {
+                "type": "heading",
+                "defaultValue": "Favorite Teams"
+            },
+            {
+                "type": "checkboxgroup",
+                "messageKey": "FAVORITES_NFL",
+                "label": "NFL Favorites",
+                "options": [
+                    {
+                        "label": "Arizona Cardinals",
+                        "value": "1:22"
+                    },
+                    {
+                        "label": "Atlanta Falcons",
+                        "value": "1:1"
+                    },
+                    {
+                        "label": "Baltimore Ravens",
+                        "value": "1:33"
+                    },
+                    {
+                        "label": "Buffalo Bills",
+                        "value": "1:2"
+                    },
+                    {
+                        "label": "Carolina Panthers",
+                        "value": "1:29"
+                    },
+                    {
+                        "label": "Chicago Bears",
+                        "value": "1:3"
+                    },
+                    {
+                        "label": "Cincinnati Bengals",
+                        "value": "1:4"
+                    },
+                    {
+                        "label": "Cleveland Browns",
+                        "value": "1:5"
+                    },
+                    {
+                        "label": "Dallas Cowboys",
+                        "value": "1:6"
+                    },
+                    {
+                        "label": "Denver Broncos",
+                        "value": "1:7"
+                    },
+                    {
+                        "label": "Detroit Lions",
+                        "value": "1:8"
+                    },
+                    {
+                        "label": "Green Bay Packers",
+                        "value": "1:9"
+                    },
+                    {
+                        "label": "Houston Texans",
+                        "value": "1:34"
+                    },
+                    {
+                        "label": "Indianapolis Colts",
+                        "value": "1:11"
+                    },
+                    {
+                        "label": "Jacksonville Jaguars",
+                        "value": "1:30"
+                    },
+                    {
+                        "label": "Kansas City Chiefs",
+                        "value": "1:12"
+                    },
+                    {
+                        "label": "Las Vegas Raiders",
+                        "value": "1:13"
+                    },
+                    {
+                        "label": "Los Angeles Chargers",
+                        "value": "1:24"
+                    },
+                    {
+                        "label": "Los Angeles Rams",
+                        "value": "1:14"
+                    },
+                    {
+                        "label": "Miami Dolphins",
+                        "value": "1:15"
+                    },
+                    {
+                        "label": "Minnesota Vikings",
+                        "value": "1:16"
+                    },
+                    {
+                        "label": "New England Patriots",
+                        "value": "1:17"
+                    },
+                    {
+                        "label": "New Orleans Saints",
+                        "value": "1:18"
+                    },
+                    {
+                        "label": "New York Giants",
+                        "value": "1:19"
+                    },
+                    {
+                        "label": "New York Jets",
+                        "value": "1:20"
+                    },
+                    {
+                        "label": "Philadelphia Eagles",
+                        "value": "1:21"
+                    },
+                    {
+                        "label": "Pittsburgh Steelers",
+                        "value": "1:23"
+                    },
+                    {
+                        "label": "San Francisco 49ers",
+                        "value": "1:25"
+                    },
+                    {
+                        "label": "Seattle Seahawks",
+                        "value": "1:26"
+                    },
+                    {
+                        "label": "Tampa Bay Buccaneers",
+                        "value": "1:27"
+                    },
+                    {
+                        "label": "Tennessee Titans",
+                        "value": "1:10"
+                    },
+                    {
+                        "label": "Washington Commanders",
+                        "value": "1:28"
+                    }
+                ]
+            },
+            {
+                "type": "checkboxgroup",
+                "messageKey": "FAVORITES_MLB",
+                "label": "MLB Favorites",
+                "options": [
+                    {
+                        "label": "Arizona Diamondbacks",
+                        "value": "2:29"
+                    },
+                    {
+                        "label": "Athletics",
+                        "value": "2:11"
+                    },
+                    {
+                        "label": "Atlanta Braves",
+                        "value": "2:15"
+                    },
+                    {
+                        "label": "Baltimore Orioles",
+                        "value": "2:1"
+                    },
+                    {
+                        "label": "Boston Red Sox",
+                        "value": "2:2"
+                    },
+                    {
+                        "label": "Chicago Cubs",
+                        "value": "2:16"
+                    },
+                    {
+                        "label": "Chicago White Sox",
+                        "value": "2:4"
+                    },
+                    {
+                        "label": "Cincinnati Reds",
+                        "value": "2:17"
+                    },
+                    {
+                        "label": "Cleveland Guardians",
+                        "value": "2:5"
+                    },
+                    {
+                        "label": "Colorado Rockies",
+                        "value": "2:27"
+                    },
+                    {
+                        "label": "Detroit Tigers",
+                        "value": "2:6"
+                    },
+                    {
+                        "label": "Houston Astros",
+                        "value": "2:18"
+                    },
+                    {
+                        "label": "Kansas City Royals",
+                        "value": "2:7"
+                    },
+                    {
+                        "label": "Los Angeles Angels",
+                        "value": "2:3"
+                    },
+                    {
+                        "label": "Los Angeles Dodgers",
+                        "value": "2:19"
+                    },
+                    {
+                        "label": "Miami Marlins",
+                        "value": "2:28"
+                    },
+                    {
+                        "label": "Milwaukee Brewers",
+                        "value": "2:8"
+                    },
+                    {
+                        "label": "Minnesota Twins",
+                        "value": "2:9"
+                    },
+                    {
+                        "label": "New York Mets",
+                        "value": "2:21"
+                    },
+                    {
+                        "label": "New York Yankees",
+                        "value": "2:10"
+                    },
+                    {
+                        "label": "Philadelphia Phillies",
+                        "value": "2:22"
+                    },
+                    {
+                        "label": "Pittsburgh Pirates",
+                        "value": "2:23"
+                    },
+                    {
+                        "label": "San Diego Padres",
+                        "value": "2:25"
+                    },
+                    {
+                        "label": "San Francisco Giants",
+                        "value": "2:26"
+                    },
+                    {
+                        "label": "Seattle Mariners",
+                        "value": "2:12"
+                    },
+                    {
+                        "label": "St. Louis Cardinals",
+                        "value": "2:24"
+                    },
+                    {
+                        "label": "Tampa Bay Rays",
+                        "value": "2:30"
+                    },
+                    {
+                        "label": "Texas Rangers",
+                        "value": "2:13"
+                    },
+                    {
+                        "label": "Toronto Blue Jays",
+                        "value": "2:14"
+                    },
+                    {
+                        "label": "Washington Nationals",
+                        "value": "2:20"
+                    }
+                ]
+            },
+            {
+                "type": "checkboxgroup",
+                "messageKey": "FAVORITES_NHL",
+                "label": "NHL Favorites",
+                "options": [
+                    {
+                        "label": "Anaheim Ducks",
+                        "value": "3:25"
+                    },
+                    {
+                        "label": "Boston Bruins",
+                        "value": "3:1"
+                    },
+                    {
+                        "label": "Buffalo Sabres",
+                        "value": "3:2"
+                    },
+                    {
+                        "label": "Calgary Flames",
+                        "value": "3:3"
+                    },
+                    {
+                        "label": "Carolina Hurricanes",
+                        "value": "3:7"
+                    },
+                    {
+                        "label": "Chicago Blackhawks",
+                        "value": "3:4"
+                    },
+                    {
+                        "label": "Colorado Avalanche",
+                        "value": "3:17"
+                    },
+                    {
+                        "label": "Columbus Blue Jackets",
+                        "value": "3:29"
+                    },
+                    {
+                        "label": "Dallas Stars",
+                        "value": "3:9"
+                    },
+                    {
+                        "label": "Detroit Red Wings",
+                        "value": "3:5"
+                    },
+                    {
+                        "label": "Edmonton Oilers",
+                        "value": "3:6"
+                    },
+                    {
+                        "label": "Florida Panthers",
+                        "value": "3:26"
+                    },
+                    {
+                        "label": "Los Angeles Kings",
+                        "value": "3:8"
+                    },
+                    {
+                        "label": "Minnesota Wild",
+                        "value": "3:30"
+                    },
+                    {
+                        "label": "Montreal Canadiens",
+                        "value": "3:10"
+                    },
+                    {
+                        "label": "Nashville Predators",
+                        "value": "3:27"
+                    },
+                    {
+                        "label": "New Jersey Devils",
+                        "value": "3:11"
+                    },
+                    {
+                        "label": "New York Islanders",
+                        "value": "3:12"
+                    },
+                    {
+                        "label": "New York Rangers",
+                        "value": "3:13"
+                    },
+                    {
+                        "label": "Ottawa Senators",
+                        "value": "3:14"
+                    },
+                    {
+                        "label": "Philadelphia Flyers",
+                        "value": "3:15"
+                    },
+                    {
+                        "label": "Pittsburgh Penguins",
+                        "value": "3:16"
+                    },
+                    {
+                        "label": "San Jose Sharks",
+                        "value": "3:18"
+                    },
+                    {
+                        "label": "Seattle Kraken",
+                        "value": "3:124292"
+                    },
+                    {
+                        "label": "St. Louis Blues",
+                        "value": "3:19"
+                    },
+                    {
+                        "label": "Tampa Bay Lightning",
+                        "value": "3:20"
+                    },
+                    {
+                        "label": "Toronto Maple Leafs",
+                        "value": "3:21"
+                    },
+                    {
+                        "label": "Utah Mammoth",
+                        "value": "3:129764"
+                    },
+                    {
+                        "label": "Vancouver Canucks",
+                        "value": "3:22"
+                    },
+                    {
+                        "label": "Vegas Golden Knights",
+                        "value": "3:37"
+                    },
+                    {
+                        "label": "Washington Capitals",
+                        "value": "3:23"
+                    },
+                    {
+                        "label": "Winnipeg Jets",
+                        "value": "3:28"
+                    }
+                ]
+            },
+            {
+                "type": "checkboxgroup",
+                "messageKey": "FAVORITES_NBA",
+                "label": "NBA Favorites",
+                "options": [
+                    {
+                        "label": "Atlanta Hawks",
+                        "value": "4:1"
+                    },
+                    {
+                        "label": "Boston Celtics",
+                        "value": "4:2"
+                    },
+                    {
+                        "label": "Brooklyn Nets",
+                        "value": "4:17"
+                    },
+                    {
+                        "label": "Charlotte Hornets",
+                        "value": "4:30"
+                    },
+                    {
+                        "label": "Chicago Bulls",
+                        "value": "4:4"
+                    },
+                    {
+                        "label": "Cleveland Cavaliers",
+                        "value": "4:5"
+                    },
+                    {
+                        "label": "Dallas Mavericks",
+                        "value": "4:6"
+                    },
+                    {
+                        "label": "Denver Nuggets",
+                        "value": "4:7"
+                    },
+                    {
+                        "label": "Detroit Pistons",
+                        "value": "4:8"
+                    },
+                    {
+                        "label": "Golden State Warriors",
+                        "value": "4:9"
+                    },
+                    {
+                        "label": "Houston Rockets",
+                        "value": "4:10"
+                    },
+                    {
+                        "label": "Indiana Pacers",
+                        "value": "4:11"
+                    },
+                    {
+                        "label": "LA Clippers",
+                        "value": "4:12"
+                    },
+                    {
+                        "label": "Los Angeles Lakers",
+                        "value": "4:13"
+                    },
+                    {
+                        "label": "Memphis Grizzlies",
+                        "value": "4:29"
+                    },
+                    {
+                        "label": "Miami Heat",
+                        "value": "4:14"
+                    },
+                    {
+                        "label": "Milwaukee Bucks",
+                        "value": "4:15"
+                    },
+                    {
+                        "label": "Minnesota Timberwolves",
+                        "value": "4:16"
+                    },
+                    {
+                        "label": "New Orleans Pelicans",
+                        "value": "4:3"
+                    },
+                    {
+                        "label": "New York Knicks",
+                        "value": "4:18"
+                    },
+                    {
+                        "label": "Oklahoma City Thunder",
+                        "value": "4:25"
+                    },
+                    {
+                        "label": "Orlando Magic",
+                        "value": "4:19"
+                    },
+                    {
+                        "label": "Philadelphia 76ers",
+                        "value": "4:20"
+                    },
+                    {
+                        "label": "Phoenix Suns",
+                        "value": "4:21"
+                    },
+                    {
+                        "label": "Portland Trail Blazers",
+                        "value": "4:22"
+                    },
+                    {
+                        "label": "Sacramento Kings",
+                        "value": "4:23"
+                    },
+                    {
+                        "label": "San Antonio Spurs",
+                        "value": "4:24"
+                    },
+                    {
+                        "label": "Toronto Raptors",
+                        "value": "4:28"
+                    },
+                    {
+                        "label": "Utah Jazz",
+                        "value": "4:26"
+                    },
+                    {
+                        "label": "Washington Wizards",
+                        "value": "4:27"
+                    }
+                ]
+            },
+            {
+                "type": "checkboxgroup",
+                "messageKey": "FAVORITES_MLS",
+                "label": "MLS Favorites",
+                "options": [
+                    {
+                        "label": "Atlanta United FC",
+                        "value": "5:18418"
+                    },
+                    {
+                        "label": "Austin FC",
+                        "value": "5:20906"
+                    },
+                    {
+                        "label": "CF Montr\u00e9al",
+                        "value": "5:9720"
+                    },
+                    {
+                        "label": "Charlotte FC",
+                        "value": "5:21300"
+                    },
+                    {
+                        "label": "Chicago Fire FC",
+                        "value": "5:182"
+                    },
+                    {
+                        "label": "Colorado Rapids",
+                        "value": "5:184"
+                    },
+                    {
+                        "label": "Columbus Crew",
+                        "value": "5:183"
+                    },
+                    {
+                        "label": "D.C. United",
+                        "value": "5:193"
+                    },
+                    {
+                        "label": "FC Cincinnati",
+                        "value": "5:18267"
+                    },
+                    {
+                        "label": "FC Dallas",
+                        "value": "5:185"
+                    },
+                    {
+                        "label": "Houston Dynamo FC",
+                        "value": "5:6077"
+                    },
+                    {
+                        "label": "Inter Miami CF",
+                        "value": "5:20232"
+                    },
+                    {
+                        "label": "LA Galaxy",
+                        "value": "5:187"
+                    },
+                    {
+                        "label": "LAFC",
+                        "value": "5:18966"
+                    },
+                    {
+                        "label": "Minnesota United FC",
+                        "value": "5:17362"
+                    },
+                    {
+                        "label": "Nashville SC",
+                        "value": "5:18986"
+                    },
+                    {
+                        "label": "New England Revolution",
+                        "value": "5:189"
+                    },
+                    {
+                        "label": "New York City FC",
+                        "value": "5:17606"
+                    },
+                    {
+                        "label": "Orlando City SC",
+                        "value": "5:12011"
+                    },
+                    {
+                        "label": "Philadelphia Union",
+                        "value": "5:10739"
+                    },
+                    {
+                        "label": "Portland Timbers",
+                        "value": "5:9723"
+                    },
+                    {
+                        "label": "Real Salt Lake",
+                        "value": "5:4771"
+                    },
+                    {
+                        "label": "Red Bull New York",
+                        "value": "5:190"
+                    },
+                    {
+                        "label": "San Diego FC",
+                        "value": "5:22529"
+                    },
+                    {
+                        "label": "San Jose Earthquakes",
+                        "value": "5:191"
+                    },
+                    {
+                        "label": "Seattle Sounders FC",
+                        "value": "5:9726"
+                    },
+                    {
+                        "label": "Sporting Kansas City",
+                        "value": "5:186"
+                    },
+                    {
+                        "label": "St. Louis CITY SC",
+                        "value": "5:21812"
+                    },
+                    {
+                        "label": "Toronto FC",
+                        "value": "5:7318"
+                    },
+                    {
+                        "label": "Vancouver Whitecaps",
+                        "value": "5:9727"
+                    }
+                ]
             }
         ]
     },
@@ -33,17 +703,17 @@
                 "defaultValue": "final-only",
                 "label": "Show Records",
                 "options": [
-                    { 
+                    {
                         "label": "Never",
-                        "value": "never" 
+                        "value": "never"
                     },
-                    { 
+                    {
                         "label": "Final Scores Only",
-                        "value": "final-only" 
+                        "value": "final-only"
                     },
-                    { 
+                    {
                         "label": "Always",
-                        "value": "always" 
+                        "value": "always"
                     }
                 ]
             }
