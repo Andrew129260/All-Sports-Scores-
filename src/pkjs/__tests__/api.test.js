@@ -173,6 +173,16 @@ describe('API Parsing logic', () => {
                                         { athlete: { displayName: "Player 6" } }
                                     ],
                                     status: { type: { name: "STATUS_RETIRED" } }
+                                },
+                                {
+                                    // Should be skipped because shortDetail says Retired
+                                    id: "t5",
+                                    date: "2024-09-08T20:00:00Z",
+                                    competitors: [
+                                        { athlete: { displayName: "Player 7" } },
+                                        { athlete: { displayName: "Player 8" } }
+                                    ],
+                                    status: { type: { name: "STATUS_FINAL", shortDetail: "Retired" } }
                                 }
                             ]
                         }
@@ -185,18 +195,20 @@ describe('API Parsing logic', () => {
 
         // We only fetch one endpoint for this test by specifying ATP index 0
         api.getGames(models.sports.TENNIS, 0, (games) => {
-            // Assert only the valid matches (t1 and t2) are kept. t3 and t4 are dropped.
+            // Assert only the valid matches (t1 and t2) are kept. t3, t4, and t5 are dropped.
             expect(games).toHaveLength(2);
 
             const t1 = games.find(g => g.id === "t1");
             const t2 = games.find(g => g.id === "t2");
             const t3 = games.find(g => g.id === "t3");
             const t4 = games.find(g => g.id === "t4");
+            const t5 = games.find(g => g.id === "t5");
 
             expect(t1).toBeDefined();
             expect(t2).toBeDefined();
             expect(t3).toBeUndefined(); // Dropped
             expect(t4).toBeUndefined(); // Dropped
+            expect(t5).toBeUndefined(); // Dropped
 
             expect(t1.team1.name).toBe("P. TW"); // P. Two truncated to 5 (index 1 is team1)
             expect(t1.team2.name).toBe("P. ON"); // P. One truncated to 5 (index 0 is team2)

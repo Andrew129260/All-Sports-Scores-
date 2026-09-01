@@ -177,12 +177,16 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
                                                     // Skip cancelled/retired/walkover matches, and TBD vs TBD matches
                                                     // which bloat the tennis timeline and cause scrolling issues
                                                     let status = comp.status && comp.status.type ? comp.status.type.name : "";
+                                                    let shortDetail = comp.status && comp.status.type ? (comp.status.type.shortDetail || "") : "";
                                                     let p1 = comp.competitors && comp.competitors.length > 1 ? (comp.competitors[1].athlete || comp.competitors[1].team) : null;
                                                     let p2 = comp.competitors && comp.competitors.length > 0 ? (comp.competitors[0].athlete || comp.competitors[0].team) : null;
                                                     let name1 = p1 ? (p1.displayName || p1.shortName || "TBD") : "TBD";
                                                     let name2 = p2 ? (p2.displayName || p2.shortName || "TBD") : "TBD";
 
                                                     if (status === "STATUS_RETIRED" || status === "STATUS_WALKOVER") {
+                                                        return;
+                                                    }
+                                                    if (shortDetail.indexOf("Retired") !== -1 || shortDetail.indexOf("Walkover") !== -1) {
                                                         return;
                                                     }
                                                     if (name1 === "TBD" && name2 === "TBD") {
