@@ -109,11 +109,19 @@ static void score_update_proc(Layer *layer, GContext *ctx) {
     bool team_1_possession = (game->possession) == Team1;
     bool team_2_possession = (game->possession) == Team2;
 
-    GRect tm1_bnds = GRect(0, possession_y, half_w, 26);
+    int text_height = 26;
+    int winner_offset = 14;
+    #if PBL_DISPLAY_WIDTH > 144
+        possession_y += 5; // Push down slightly on larger Emery displays
+        text_height = 32;
+        winner_offset = 18;
+    #endif
+
+    GRect tm1_bnds = GRect(0, possession_y, half_w, text_height);
     graphics_draw_text(ctx, t1_name, font_team, tm1_bnds, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
     
     if (is_tennis && game->team1.winner) {
-        GRect win1_bnds = GRect(0, possession_y + 14, half_w, 14);
+        GRect win1_bnds = GRect(0, possession_y + winner_offset, half_w, 18);
         graphics_draw_text(ctx, "Winner", font_winner, win1_bnds, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
     }
 
@@ -125,11 +133,11 @@ static void score_update_proc(Layer *layer, GContext *ctx) {
         graphics_fill_circle(ctx, GPoint(dot_x, possession_y + 13), 2);
     }
 
-    GRect tm2_bnds = GRect(right_x, possession_y, half_w, 26);
+    GRect tm2_bnds = GRect(right_x, possession_y, half_w, text_height);
     graphics_draw_text(ctx, t2_name, font_team, tm2_bnds, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
     
     if (is_tennis && game->team2.winner) {
-        GRect win2_bnds = GRect(right_x, possession_y + 14, half_w, 14);
+        GRect win2_bnds = GRect(right_x, possession_y + winner_offset, half_w, 18);
         graphics_draw_text(ctx, "Winner", font_winner, win2_bnds, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
     }
 
