@@ -108,14 +108,26 @@ Pebble.addEventListener('webviewclosed', function(e) {
   // 2. Process search query if any
   if (searchQuery && searchQuery.trim().length > 0) {
       var query = searchQuery.trim();
-      var url = "https://site.web.api.espn.com/apis/search/v2?region=us&lang=en&query=" + encodeURIComponent(query) + "&limit=5&type=team";
+      var url = "https://site.web.api.espn.com/apis/search/v2?region=us&lang=en&query=" + encodeURIComponent(query) + "&limit=5";
       var req = new XMLHttpRequest();
       req.open('GET', url, true);
       req.onload = function() {
           if (req.status == 200) {
               var data = JSON.parse(req.responseText);
-              if (data.results && data.results.length > 0 && data.results[0].contents && data.results[0].contents.length > 0) {
-                  var bestMatch = data.results[0].contents[0];
+
+              var bestMatch = null;
+              if (data.results && data.results.length > 0) {
+                  // Find first team or player in results
+                  for (var r = 0; r < data.results.length; r++) {
+                      if ((data.results[r].type === 'team' || data.results[r].type === 'player') && data.results[r].contents && data.results[r].contents.length > 0) {
+                          bestMatch = data.results[r].contents[0];
+                          break;
+                      }
+                  }
+              }
+              if (bestMatch) {
+
+
 
 
                   // Map sport name to ID
@@ -129,10 +141,27 @@ Pebble.addEventListener('webviewclosed', function(e) {
                   else if (sportStr === "australian-football") sportId = models.sports.AFL;
                   else if (sportStr === "cricket") sportId = models.sports.CRICKET;
                   else if (sportStr === "rugby-league" || sportStr === "rugby-union") sportId = models.sports.RUGBY;
+                  else if (sportStr === "tennis") sportId = models.sports.TENNIS;
+                  else if (sportStr === "mma") sportId = models.sports.MMA;
 
                   if (sportId !== -1) {
-                      var teamIdStr = bestMatch.uid.split('~t:')[1];
+                      var teamIdStr = "";
+                      if (bestMatch.type === "player") {
+                          // e.g. "s:850~l:851~a:296" -> 296
+                          var parts = bestMatch.uid.split('~a:');
+                          if (parts.length > 1) {
+                              teamIdStr = parts[1];
+                          }
+                      } else {
+                          // team e.g. "s:20~l:28~t:22" -> 22
+                          var parts = bestMatch.uid.split('~t:');
+                          if (parts.length > 1) {
+                              teamIdStr = parts[1];
+                          }
+                      }
+
                       if (teamIdStr) {
+
                           var newTeam = new models.FavoriteTeam(sportId, teamIdStr);
                           var key = sportId + ":" + teamIdStr;
 
