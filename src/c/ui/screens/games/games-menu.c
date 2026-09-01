@@ -92,7 +92,7 @@ static void on_games_error(AppError error) {
         s_error_layer = error_layer_create(error_layer_bounds);
         layer_add_child(window_layer, (Layer*)s_error_layer);
     }
-    error_layer_set_error(s_error_layer, error);
+    error_layer_set_error(s_error_layer, error, s_sport);
 
     if (s_menu_layer != NULL) {
         menu_layer_reload_data(s_menu_layer);

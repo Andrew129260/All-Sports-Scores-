@@ -123,7 +123,7 @@ describe('API Parsing logic', () => {
         xhrMock.onload();
     });
 
-    test('should parse nested groupings for Tennis correctly', (done) => {
+    test('should parse nested groupings for Tennis correctly and skip bad matches', (done) => {
         const fakeTennisData = {
             events: [
                 {
@@ -153,6 +153,26 @@ describe('API Parsing logic', () => {
                                     status: {
                                         type: { name: "STATUS_SCHEDULED", shortDetail: "3:00 PM" }
                                     }
+                                },
+                                {
+                                    // Should be skipped because both are TBD
+                                    id: "t3",
+                                    date: "2024-09-10T20:00:00Z",
+                                    competitors: [
+                                        { athlete: { displayName: "TBD", shortName: "TBD" } },
+                                        { athlete: { displayName: "TBD", shortName: "TBD" } }
+                                    ],
+                                    status: { type: { name: "STATUS_SCHEDULED" } }
+                                },
+                                {
+                                    // Should be skipped because it is retired
+                                    id: "t4",
+                                    date: "2024-09-08T20:00:00Z",
+                                    competitors: [
+                                        { athlete: { displayName: "Player 5" } },
+                                        { athlete: { displayName: "Player 6" } }
+                                    ],
+                                    status: { type: { name: "STATUS_RETIRED" } }
                                 }
                             ]
                         }
@@ -165,18 +185,18 @@ describe('API Parsing logic', () => {
 
         // We only fetch one endpoint for this test by specifying ATP index 0
         api.getGames(models.sports.TENNIS, 0, (games) => {
+            // Assert only the valid matches (t1 and t2) are kept. t3 and t4 are dropped.
             expect(games).toHaveLength(2);
-            // In API logic, games might be sorted by whether they are Final, then by date.
-            // t1 is STATUS_FINAL, t2 is STATUS_SCHEDULED.
-            // Sorting puts final games last (if they were Final vs not final, or vice versa? let's see)
-            // Wait, actually the sorting logic sorts 'Final' games last or first?
 
-            // Just find them by ID
             const t1 = games.find(g => g.id === "t1");
             const t2 = games.find(g => g.id === "t2");
+            const t3 = games.find(g => g.id === "t3");
+            const t4 = games.find(g => g.id === "t4");
 
             expect(t1).toBeDefined();
             expect(t2).toBeDefined();
+            expect(t3).toBeUndefined(); // Dropped
+            expect(t4).toBeUndefined(); // Dropped
 
             expect(t1.team1.name).toBe("P. TW"); // P. Two truncated to 5 (index 1 is team1)
             expect(t1.team2.name).toBe("P. ON"); // P. One truncated to 5 (index 0 is team2)
