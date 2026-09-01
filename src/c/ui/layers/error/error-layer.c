@@ -38,7 +38,7 @@ ErrorLayer* error_layer_create(GRect bounds) {
     return error_layer;
 }
 
-void error_layer_set_error(ErrorLayer *error_layer, AppError error) {
+void error_layer_set_error(ErrorLayer *error_layer, AppError error, Sport sport) {
     ErrorLayerData *data = (ErrorLayerData *) layer_get_data(error_layer);
     
     // Destroy the old icon before loading a new one to prevent memory leaks
@@ -50,7 +50,7 @@ void error_layer_set_error(ErrorLayer *error_layer, AppError error) {
     switch (error)
     {
         case NoGames:
-            data->icon = gbitmap_create_with_resource(RESOURCE_ID_GENERIC_25);
+            data->icon = gbitmap_create_with_resource(sport_get_icon_res_large(sport));
             data->title = "No Games";
             data->summary = "Press select to refresh";
             break;
