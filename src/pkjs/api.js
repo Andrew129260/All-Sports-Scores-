@@ -166,7 +166,25 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
                         try {
                             const sportsData = JSON.parse(req.responseText);
                             if (sportsData.events) {
-                                let games = sportsData.events.map(event => parseEvent(sport, task.league, event)).filter(g => g !== null);
+                                let allParsedEvents = [];
+                                sportsData.events.forEach(event => {
+                                    if (event.competitions) {
+                                        allParsedEvents.push(event);
+                                    } else if (event.groupings) {
+                                        event.groupings.forEach(grouping => {
+                                            if (grouping.competitions) {
+                                                grouping.competitions.forEach(comp => {
+                                                    allParsedEvents.push({
+                                                        id: comp.id || event.id,
+                                                        name: event.name,
+                                                        competitions: [comp]
+                                                    });
+                                                });
+                                            }
+                                        });
+                                    }
+                                });
+                                let games = allParsedEvents.map(event => parseEvent(sport, task.league, event)).filter(g => g !== null);
                                 allGames = allGames.concat(games);
                             }
                         } catch (e) {
