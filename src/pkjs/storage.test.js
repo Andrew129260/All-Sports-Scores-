@@ -1,9 +1,11 @@
-const storage = require('./storage');
+let storage;
 
 describe('storage.js', () => {
     let store = {};
 
     beforeEach(() => {
+        jest.resetModules();
+        storage = require('./storage');
         // Mock localStorage
         store = {};
         global.localStorage = {
