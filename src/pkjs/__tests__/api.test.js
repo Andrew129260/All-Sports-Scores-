@@ -72,6 +72,57 @@ describe('API Parsing logic', () => {
         xhrMock.onload();
     });
 
+    test('should filter out games scheduled more than 7 days in advance', (done) => {
+        const now = new Date();
+        const future8Days = new Date(now.getTime() + (8 * 24 * 60 * 60 * 1000));
+        const future2Days = new Date(now.getTime() + (2 * 24 * 60 * 60 * 1000));
+
+        const fakeData = {
+            events: [
+                {
+                    id: "event_far",
+                    competitions: [
+                        {
+                            id: "far",
+                            date: future8Days.toISOString(),
+                            competitors: [
+                                { team: { abbreviation: "FAR1" } },
+                                { team: { abbreviation: "FAR2" } }
+                            ],
+                            status: { type: { name: "STATUS_SCHEDULED" } }
+                        }
+                    ]
+                },
+                {
+                    id: "event_near",
+                    competitions: [
+                        {
+                            id: "near",
+                            date: future2Days.toISOString(),
+                            competitors: [
+                                { team: { abbreviation: "NEAR1" } },
+                                { team: { abbreviation: "NEAR2" } }
+                            ],
+                            status: { type: { name: "STATUS_SCHEDULED" } }
+                        }
+                    ]
+                }
+            ]
+        };
+
+        xhrMock.responseText = JSON.stringify(fakeData);
+
+        api.getGames(models.sports.NFL, 0, (games) => {
+            expect(games).toHaveLength(1);
+            expect(games[0].id).toBe("event_near");
+            done();
+        }, () => {
+            done.fail('Should not call error callback');
+        });
+
+        xhrMock.onload();
+    });
+
     test('should parse nested groupings for Tennis correctly', (done) => {
         const fakeTennisData = {
             events: [
