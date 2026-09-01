@@ -237,11 +237,19 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
                 });
 
                 uniqueGames.sort((a, b) => {
-                    let aIsFinal = (a.time && a.time.toLowerCase().indexOf('final') !== -1);
-                    let bIsFinal = (b.time && b.time.toLowerCase().indexOf('final') !== -1);
+                    const getWeight = (game) => {
+                        let isFinal = game.time === "Final" || game.time === "FT" || (game.time && game.time.toLowerCase().indexOf("final") > -1);
+                        let isScheduled = game.time && (game.time.toLowerCase().indexOf("am") > -1 || game.time.toLowerCase().indexOf("pm") > -1 || game.time.toLowerCase().indexOf("tbd") > -1 || game.time.toLowerCase() === "scheduled");
+                        if (!isFinal && !isScheduled && game.time) return 0; // Active
+                        return 1;
+                    };
 
-                    if (aIsFinal && !bIsFinal) return 1;
-                    if (!aIsFinal && bIsFinal) return -1;
+                    const weightA = getWeight(a);
+                    const weightB = getWeight(b);
+
+                    if (weightA !== weightB) {
+                        return weightA - weightB;
+                    }
 
                     if (a.startTime && b.startTime) {
                         return a.startTime.getTime() - b.startTime.getTime();
@@ -482,7 +490,7 @@ function getTimelineIcon(sport) {
 
 function insertUserPin(pin) {
     // Local Pins are supported in newer Pebble apps and work offline
-    if (typeof Pebble.insertTimelinePin === 'function') {
+    if (typeof Pebble !== 'undefined' && typeof Pebble.insertTimelinePin === 'function') {
         Pebble.insertTimelinePin(pin, function() {
             console.log("Local pin inserted successfully: " + pin.id);
         }, function(error) {
@@ -506,12 +514,14 @@ function insertUserPin(pin) {
             req.send(JSON.stringify(pin));
         };
 
-        Pebble.getTimelineToken(function(token) {
-            sendRequest(token);
-        }, function(error) {
-            console.log('Failed to get timeline token (' + error + '), attempting offline local pin push anyway');
-            sendRequest('offline-dummy-token');
-        });
+        if (typeof Pebble !== 'undefined' && typeof Pebble.getTimelineToken === 'function') {
+            Pebble.getTimelineToken(function(token) {
+                sendRequest(token);
+            }, function(error) {
+                console.log('Failed to get timeline token (' + error + '), attempting offline local pin push anyway');
+                sendRequest('offline-dummy-token');
+            });
+        }
     }
 }
 
@@ -520,11 +530,15 @@ function updateTimelinePins(games) {
     const future48h = new Date(now.getTime() + (48 * 60 * 60 * 1000));
 
     // CACHE FIX: Check localStorage to prevent spamming Rebble servers with duplicate pins
-    let pushedPins = [];
+    // Now storing as an object mapping pinId to localTimeISO so if the time changes, we push it again.
+    let pushedPins = {};
     try { 
         let parsed = JSON.parse(localStorage.getItem("pushed_pins"));
-        if (Array.isArray(parsed)) {
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
             pushedPins = parsed;
+        } else if (Array.isArray(parsed)) {
+            // Migration from old array format
+            parsed.forEach(id => { pushedPins[id] = true; });
         }
     } catch(e) {}
 
@@ -532,14 +546,13 @@ function updateTimelinePins(games) {
         if (game.startTime && !isNaN(game.startTime.getTime())) {
             if (game.startTime > now && game.startTime < future48h) {
                 let pinId = "game-" + game.id;
+                let localTimeISO = game.startTime.toISOString();
                 
-                // SKIPPING: We already sent this to Rebble!
-                if (pushedPins.includes(pinId)) return;
+                // SKIPPING: We already sent this to Rebble with the EXACT SAME TIME!
+                if (pushedPins[pinId] === localTimeISO) return;
 
                 let bodyText = "Starts at: " + game.time + " (" + game.details + ")";
                 if (game.broadcast) { bodyText += "\nWatch on: " + game.broadcast; }
-
-                let localTimeISO = game.startTime.toISOString();
 
                 var pin = {
                     "id": pinId,
@@ -555,14 +568,17 @@ function updateTimelinePins(games) {
                 };
                 
                 insertUserPin(pin);
-                pushedPins.push(pinId);
+                pushedPins[pinId] = localTimeISO;
             }
         }
     });
 
     // Keep the cache size healthy so it doesn't blow up the phone's local storage limits
-    if (pushedPins.length > 100) {
-        pushedPins = pushedPins.slice(-100);
+    let keys = Object.keys(pushedPins);
+    if (keys.length > 100) {
+        let newPushedPins = {};
+        keys.slice(-100).forEach(k => { newPushedPins[k] = pushedPins[k]; });
+        pushedPins = newPushedPins;
     }
     localStorage.setItem("pushed_pins", JSON.stringify(pushedPins));
 }
