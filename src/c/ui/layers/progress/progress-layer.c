@@ -60,7 +60,7 @@ void animation_repeat_handler (Animation *animation, bool finished, void *contex
 }
 
 void init_animation(ProgressLayer *progress_layer, ProgressLayerData *data) {
-    int to_int = 100;
+    static int16_t to_int = 100;
 
     if (data->prop_anim) {
         if (data->animation) {
