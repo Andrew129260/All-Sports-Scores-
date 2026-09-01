@@ -195,6 +195,7 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
 
                                                     allParsedEvents.push({
                                                         id: comp.id || event.id,
+                                                        eventId: event.id,
                                                         name: event.name,
                                                         competitions: [comp]
                                                     });
@@ -318,7 +319,7 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
 
 function getGame(id, sport, onLoad, onError) {
     getGamesForSport(sport, null, (games) => { 
-            let foundGame = games.find(g => g.id == id);
+            let foundGame = games.find(g => g.id == id || g.eventId == id);
             if (foundGame == undefined) {
                 onError();
             } else {
@@ -370,6 +371,7 @@ function parseEvent(sport, league, event) {
     })(status.type ? status.type.name : "STATUS_SCHEDULED");
 
     const id = event.id || "0";
+    const eventId = event.eventId || id;
 
     const competitor1 = competitors.length > 1 ? competitors[1] : {}; 
     const competitor2 = competitors.length > 0 ? competitors[0] : {};
@@ -421,15 +423,16 @@ function parseEvent(sport, league, event) {
     var gameObj = new models.Game(
         id,
         sport,
-        new models.Team(t1Abbrev.toUpperCase(), t1Id, team1Record),
+        new models.Team(t1Abbrev.toUpperCase(), t1Id, team1Record, competitor1.winner === true),
         score1,
-        new models.Team(t2Abbrev.toUpperCase(), t2Id, team2Record),
+        new models.Team(t2Abbrev.toUpperCase(), t2Id, team2Record, competitor2.winner === true),
         score2,
         possession,
         time,
         details,
         broadcast 
     );
+    gameObj.eventId = eventId;
 
     gameObj.startTime = date; 
     gameObj.league = league; 

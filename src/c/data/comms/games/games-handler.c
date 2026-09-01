@@ -174,6 +174,7 @@ void game_set(Game *game, DictionaryIterator *iter) {
         .score = team_1_score,
         .id = get_dict_int_safe(iter, MESSAGE_KEY_SEND_GAME_TEAM_1_ID, 0),
         .favorite = get_dict_int_safe(iter, MESSAGE_KEY_SEND_GAME_TEAM_1_FAVORITE, 0),
+        .winner = get_dict_int_safe(iter, MESSAGE_KEY_SEND_GAME_TEAM_1_WINNER, 0),
         .record = memorize_dict_string(iter, MESSAGE_KEY_SEND_GAME_TEAM_1_RECORD, "Team1Record"),
     };
     
@@ -182,6 +183,7 @@ void game_set(Game *game, DictionaryIterator *iter) {
         .score = team_2_score,
         .id = get_dict_int_safe(iter, MESSAGE_KEY_SEND_GAME_TEAM_2_ID, 0),
         .favorite = get_dict_int_safe(iter, MESSAGE_KEY_SEND_GAME_TEAM_2_FAVORITE, 0),
+        .winner = get_dict_int_safe(iter, MESSAGE_KEY_SEND_GAME_TEAM_2_WINNER, 0),
         .record = memorize_dict_string(iter, MESSAGE_KEY_SEND_GAME_TEAM_2_RECORD, "Team2Record"),
     };
     
