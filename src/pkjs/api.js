@@ -97,8 +97,7 @@ function getEndpointsForSport(sport) {
             { url: base + '/soccer/ita.1', league: "Serie A" },
             { url: base + '/soccer/mex.1', league: "Liga MX" },
             { url: base + '/soccer/uefa.champions', league: "UEFA Champ" },
-            { url: base + '/soccer/fifa.world', league: "World Cup" },
-            { url: base + '/soccer/fifa.womens.world.cup', league: "Women's WC" }
+            { url: base + '/soccer/fifa.world', league: "World Cup" }
         ];
         case models.sports.RUGBY: return [
             { url: base + '/rugby-league/3', league: "NRL" }, 
