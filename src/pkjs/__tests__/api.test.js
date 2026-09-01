@@ -31,6 +31,7 @@ describe('API Parsing logic', () => {
     });
 
     test('should parse normal flat competitions correctly', (done) => {
+        const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
         const fakeData = {
             events: [
                 {
@@ -38,7 +39,7 @@ describe('API Parsing logic', () => {
                     competitions: [
                         {
                             id: "c1",
-                            date: "2024-09-08T20:00:00Z",
+                            date: yesterday,
                             competitors: [
                                 { team: { abbreviation: "TEAM A", id: "1" }, score: "10" },
                                 { team: { abbreviation: "TEAM B", id: "2" }, score: "5" }
@@ -124,6 +125,9 @@ describe('API Parsing logic', () => {
     });
 
     test('should parse nested groupings for Tennis correctly and skip bad matches', (done) => {
+        const today = new Date(Date.now()).toISOString();
+        const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+        const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
         const fakeTennisData = {
             events: [
                 {
@@ -134,7 +138,7 @@ describe('API Parsing logic', () => {
                             competitions: [
                                 {
                                     id: "t1",
-                                    date: "2024-09-08T20:00:00Z",
+                                    date: yesterday,
                                     competitors: [
                                         { athlete: { displayName: "Player 1", shortName: "P. One" }, score: "2" },
                                         { athlete: { displayName: "Player 2", shortName: "P. Two" }, score: "0" }
@@ -145,7 +149,7 @@ describe('API Parsing logic', () => {
                                 },
                                 {
                                     id: "t2",
-                                    date: "2024-09-09T20:00:00Z",
+                                    date: today,
                                     competitors: [
                                         { athlete: { displayName: "Player 3", shortName: "P. Three" } },
                                         { athlete: { displayName: "Player 4", shortName: "P. Four" } }
@@ -157,7 +161,7 @@ describe('API Parsing logic', () => {
                                 {
                                     // Should be skipped because both are TBD
                                     id: "t3",
-                                    date: "2024-09-10T20:00:00Z",
+                                    date: tomorrow,
                                     competitors: [
                                         { athlete: { displayName: "TBD", shortName: "TBD" } },
                                         { athlete: { displayName: "TBD", shortName: "TBD" } }
@@ -167,7 +171,7 @@ describe('API Parsing logic', () => {
                                 {
                                     // Should be skipped because it is retired
                                     id: "t4",
-                                    date: "2024-09-08T20:00:00Z",
+                                    date: yesterday,
                                     competitors: [
                                         { athlete: { displayName: "Player 5" } },
                                         { athlete: { displayName: "Player 6" } }
@@ -177,7 +181,7 @@ describe('API Parsing logic', () => {
                                 {
                                     // Should be skipped because shortDetail says Retired
                                     id: "t5",
-                                    date: "2024-09-08T20:00:00Z",
+                                    date: yesterday,
                                     competitors: [
                                         { athlete: { displayName: "Player 7" } },
                                         { athlete: { displayName: "Player 8" } }

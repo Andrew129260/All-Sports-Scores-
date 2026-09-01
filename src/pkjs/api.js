@@ -251,9 +251,10 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
 
                 const now = new Date();
                 const futureLimit = new Date(now.getTime() + (14 * 24 * 60 * 60 * 1000));
+                const pastLimit = new Date(now.getTime() - (14 * 24 * 60 * 60 * 1000));
                 const filteredGames = uniqueGames.filter(game => {
                     if (game.startTime && !isNaN(game.startTime.getTime())) {
-                        return game.startTime <= futureLimit;
+                        return game.startTime >= pastLimit && game.startTime <= futureLimit;
                     }
                     return true;
                 });
