@@ -61,7 +61,18 @@ static void score_update_proc(Layer *layer, GContext *ctx) {
         }
     #endif
 
-    GFont font_team = fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
+    bool is_tennis = (game->sport == SportTennis);
+    bool has_winner = game->team1.winner || game->team2.winner;
+
+    GFont font_team;
+    GFont font_winner = fonts_get_system_font(FONT_KEY_GOTHIC_14);
+
+    if (is_tennis && has_winner) {
+        font_team = fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD);
+    } else {
+        font_team = fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
+    }
+
     GFont font_record = fonts_get_system_font(FONT_KEY_GOTHIC_14);
 
     graphics_context_set_fill_color(ctx, GColorBlack);
@@ -101,7 +112,12 @@ static void score_update_proc(Layer *layer, GContext *ctx) {
     GRect tm1_bnds = GRect(0, possession_y, half_w, 26);
     graphics_draw_text(ctx, t1_name, font_team, tm1_bnds, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
     
-    if (team_1_possession) {
+    if (is_tennis && game->team1.winner) {
+        GRect win1_bnds = GRect(0, possession_y + 14, half_w, 14);
+        graphics_draw_text(ctx, "Winner", font_winner, win1_bnds, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
+    }
+
+    if (team_1_possession && !(is_tennis && game->team1.winner)) {
         // Measure text just to position the dot, but cap it so it never crosses the center divider
         GSize tm1_sz = graphics_text_layout_get_content_size(t1_name, font_team, tm1_bnds, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter);
         int dot_x = (half_w / 2) + (tm1_sz.w / 2) + 6;
@@ -112,7 +128,12 @@ static void score_update_proc(Layer *layer, GContext *ctx) {
     GRect tm2_bnds = GRect(right_x, possession_y, half_w, 26);
     graphics_draw_text(ctx, t2_name, font_team, tm2_bnds, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
     
-    if (team_2_possession) {
+    if (is_tennis && game->team2.winner) {
+        GRect win2_bnds = GRect(right_x, possession_y + 14, half_w, 14);
+        graphics_draw_text(ctx, "Winner", font_winner, win2_bnds, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
+    }
+
+    if (team_2_possession && !(is_tennis && game->team2.winner)) {
         GSize tm2_sz = graphics_text_layout_get_content_size(t2_name, font_team, tm2_bnds, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter);
         int dot_x = right_x + (half_w / 2) + (tm2_sz.w / 2) + 6;
         if (dot_x > right_x + half_w - 3) dot_x = right_x + half_w - 3;

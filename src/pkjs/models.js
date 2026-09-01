@@ -16,12 +16,13 @@ const possession = { TEAM1: 0, TEAM2: 1, NONE: 2 };
 const gameslistdata = { LIST_ITEM: 0, LAST_LIST_ITEM: 1, NO_GAMES: 2, NETWORK_ERROR: 3, INIT_ARRAY: 4 };
 const updategamedata = { UPDATE_GAME: 0, NETWORK_ERROR: 1 };
 
-function Team(abbreviation, id, record) {
+function Team(abbreviation, id, record, winner = false) {
     this.abbreviation = abbreviation;
     this.name = abbreviation;
     this.id = id;
     this.record = record;
     this.score = "";
+    this.winner = winner;
 }
 
 function Game(id, sport, team1, score1, team2, score2, possession, time, details, broadcast) {

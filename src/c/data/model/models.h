@@ -40,6 +40,7 @@ typedef struct Team {
     char *record;
     int id;
     bool favorite;
+    bool winner;
 } Team;
 
 typedef struct Game

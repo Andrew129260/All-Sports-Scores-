@@ -421,9 +421,9 @@ function parseEvent(sport, league, event) {
     var gameObj = new models.Game(
         id,
         sport,
-        new models.Team(t1Abbrev.toUpperCase(), t1Id, team1Record),
+        new models.Team(t1Abbrev.toUpperCase(), t1Id, team1Record, competitor1.winner === true),
         score1,
-        new models.Team(t2Abbrev.toUpperCase(), t2Id, team2Record),
+        new models.Team(t2Abbrev.toUpperCase(), t2Id, team2Record, competitor2.winner === true),
         score2,
         possession,
         time,
