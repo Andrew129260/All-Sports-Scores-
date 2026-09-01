@@ -48,6 +48,9 @@ int16_t get_anim_progress(void *subject) {
 }
 
 void animation_repeat_handler (Animation *animation, bool finished, void *context) {
+    if (!finished) {
+        return;
+    }
     ProgressLayer *progress_layer = (ProgressLayer*) context;
     bool hidden = layer_get_hidden(progress_layer);
     
@@ -109,6 +112,10 @@ void progress_layer_destroy(ProgressLayer* progress_layer) {
     if (progress_layer) {
         ProgressLayerData *layer_data = (ProgressLayerData*) layer_get_data(progress_layer);
         
+        if (layer_data->animation) {
+            animation_unschedule(layer_data->animation);
+        }
+
         if (layer_data->prop_anim) {
             property_animation_destroy(layer_data->prop_anim);
         }
