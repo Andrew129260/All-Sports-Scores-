@@ -62,7 +62,10 @@ void animation_repeat_handler (Animation *animation, bool finished, void *contex
 void init_animation(ProgressLayer *progress_layer, ProgressLayerData *data) {
     int to_int = 100;
 
-    if (data->prop_anim) { 
+    if (data->prop_anim) {
+        if (data->animation) {
+            animation_unschedule(data->animation);
+        }
         property_animation_destroy(data->prop_anim);
         data->prop_anim = NULL;
         data->animation = NULL;
