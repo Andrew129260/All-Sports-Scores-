@@ -228,7 +228,10 @@
         "uuid": "54dd282f-3cb0-4e13-9cb4-60394f40e674",
         "watchapp": {
             "watchface": false
-        }
+        },
+        "capabilities": [
+            "timeline"
+        ]
     },
     "version": "8.0.0",
     "description": "This is a fix it project from Andy's original sports app.",

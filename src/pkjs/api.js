@@ -557,6 +557,7 @@ function updateTimelinePins(games) {
                 var pin = {
                     "id": pinId,
                     "time": localTimeISO,
+                    "duration": 180,
                     "layout": {
                         "type": "genericPin",
                         "title": game.team1.name + " vs " + game.team2.name,
