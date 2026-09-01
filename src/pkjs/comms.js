@@ -4,9 +4,19 @@ const storage = require('./storage');
 console.log("--- BUSTING CACHE: VERSION 112 ---");
 
 function getGameStatusWeight(game) {
-    if (game.time === "Final" || game.time === "FT") return 2; 
-    if (game.time && (game.time.indexOf("am") > -1 || game.time.indexOf("pm") > -1)) return 1; 
-    return 0; 
+    // If not final and not scheduled, it's active. Active games have weight 0 (top).
+    // Final games have weight 1.
+    // Scheduled games have weight 1.
+    // We just want active games at top, others at the bottom sorted chronologically.
+
+    // Check if it's active
+    let isFinal = game.time === "Final" || game.time === "FT" || (game.time && game.time.toLowerCase().indexOf("final") > -1);
+    let isScheduled = game.time && (game.time.toLowerCase().indexOf("am") > -1 || game.time.toLowerCase().indexOf("pm") > -1 || game.time.toLowerCase().indexOf("tbd") > -1 || game.time.toLowerCase() === "scheduled");
+
+    if (!isFinal && !isScheduled && game.time) {
+        return 0; // Active
+    }
+    return 1; // Not active (Final or Scheduled)
 }
 
 function safeParseInt(val) {
@@ -36,11 +46,8 @@ function sendGameList(requestID, games) {
             
             if (!a.startTime || isNaN(a.startTime.getTime()) || !b.startTime || isNaN(b.startTime.getTime())) return 0;
             
-            if (weightA === 2) {
-                return b.startTime.getTime() - a.startTime.getTime();
-            } else {
-                return a.startTime.getTime() - b.startTime.getTime();
-            }
+            // Sort purely chronologically (oldest to newest)
+            return a.startTime.getTime() - b.startTime.getTime();
         });
 
         const watchInfo = typeof Pebble !== 'undefined' && Pebble.getActiveWatchInfo ? Pebble.getActiveWatchInfo() : null;
