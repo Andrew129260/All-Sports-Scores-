@@ -124,18 +124,24 @@ static char *memorize_dict_string(const DictionaryIterator *dict, uint32_t key, 
         APP_LOG(APP_LOG_LEVEL_WARNING, "DIAGNOSTIC: Key %s is NOT a string! Type: %d", debug_name, tuple->type);
         return empty_string;
     }
-    if (strlen(tuple->value->cstring) == 0) {
+
+    uint16_t max_len = tuple->length;
+    uint16_t actual_len = 0;
+    while (actual_len < max_len && tuple->value->cstring[actual_len] != '\0') {
+        actual_len++;
+    }
+
+    if (actual_len == 0) {
         return empty_string;
     }
     
-    int len = strlen(tuple->value->cstring);
-    char *str = malloc(len + 1);
+    char *str = malloc(actual_len + 1);
     
     if (str != NULL) {
-        strncpy(str, tuple->value->cstring, len);
-        str[len] = '\0';
+        memcpy(str, tuple->value->cstring, actual_len);
+        str[actual_len] = '\0';
     } else {
-        APP_LOG(APP_LOG_LEVEL_ERROR, "DIAGNOSTIC: MALLOC FAILED for %s (Len: %d)", debug_name, len);
+        APP_LOG(APP_LOG_LEVEL_ERROR, "DIAGNOSTIC: MALLOC FAILED for %s (Len: %d)", debug_name, actual_len);
         return empty_string; 
     }
     
