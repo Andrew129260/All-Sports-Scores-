@@ -1,3 +1,5 @@
+#include <pebble.h>
+#include "../../model/models.h"
 typedef enum {
     FavoriteRemoved, FavoriteAdded, FavoriteChangeFailed
 } FavoriteChangeResult;
