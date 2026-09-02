@@ -1,14 +1,20 @@
 CC = gcc
-CFLAGS = -I mocks -I ../src/c/data/model -I unity
-SRC = unity/unity.c ../src/c/data/model/models.c test_models.c
+CFLAGS = -I mocks -I ../src/c/data/model -I ../src/c/data/comms/games -I unity -g
+SRC_MODELS = unity/unity.c ../src/c/data/model/models.c test_models.c
+# We need to compile unity and the sources we are testing
+SRC_GAMES = unity/unity.c ../src/c/data/model/models.c ../src/c/data/comms/games/games-handler.c test_games_handler.c
 
-all: test_models
+all: test_models test_games_handler
 
-test_models: $(SRC)
-	$(CC) $(CFLAGS) $(SRC) -o test_models
+test_models: $(SRC_MODELS)
+	$(CC) $(CFLAGS) $(SRC_MODELS) -o test_models
 
-test: test_models
+test_games_handler: $(SRC_GAMES)
+	$(CC) $(CFLAGS) $(SRC_GAMES) -o test_games_handler
+
+test: test_models test_games_handler
 	./test_models
+	./test_games_handler
 
 clean:
-	rm -f test_models
+	rm -f test_models test_games_handler
