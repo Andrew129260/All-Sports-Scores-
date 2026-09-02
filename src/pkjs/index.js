@@ -62,8 +62,9 @@ Pebble.addEventListener('webviewclosed', function(e) {
   // 1. Process CURRENT_FAVORITES to see what was unchecked and remove them
   var currentFavs = storage.storedFavorites();
   var rawSettings = JSON.parse(decodeURIComponent(e.response));
-  var keptFavs = rawSettings['CURRENT_FAVORITES'] ? rawSettings['CURRENT_FAVORITES'].value : [];
-  var searchQuery = rawSettings['FAVORITE_TEAM_SEARCH'] ? rawSettings['FAVORITE_TEAM_SEARCH'].value : '';
+  var keptFavs = rawSettings['CURRENT_FAVORITES'] ? rawSettings['CURRENT_FAVORITES'] : [];
+  var searchQuery = rawSettings['FAVORITE_TEAM_SEARCH'] ? rawSettings['FAVORITE_TEAM_SEARCH'] : '';
+
 
   if (!Array.isArray(keptFavs)) {
       keptFavs = [keptFavs];
@@ -148,6 +149,10 @@ Pebble.addEventListener('webviewclosed', function(e) {
                   // Map sport name to ID
                   var sportId = -1;
                   var sportStr = bestMatch.sport;
+                  if (sportStr === "football" && (bestMatch.defaultLeagueSlug === "nfl" || bestMatch.defaultLeagueSlug === "college-football")) sportId = models.sports.NFL;
+                  else if (sportStr === "baseball" && bestMatch.defaultLeagueSlug === "mlb") sportId = models.sports.MLB;
+                  else if (sportStr === "hockey" && bestMatch.defaultLeagueSlug === "nhl") sportId = models.sports.NHL;
+                  else if (sportStr === "basketball" && (bestMatch.defaultLeagueSlug === "nba" || bestMatch.defaultLeagueSlug === "mens-college-basketball" || bestMatch.defaultLeagueSlug === "womens-college-basketball")) sportId = models.sports.NBA;
                   if (sportStr === "football" && bestMatch.defaultLeagueSlug === "nfl") sportId = models.sports.NFL;
                   else if (sportStr === "baseball" && bestMatch.defaultLeagueSlug === "mlb") sportId = models.sports.MLB;
                   else if (sportStr === "hockey" && bestMatch.defaultLeagueSlug === "nhl") sportId = models.sports.NHL;
