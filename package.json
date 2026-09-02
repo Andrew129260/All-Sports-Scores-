@@ -40,7 +40,9 @@
             "CONFIG_SHOW_RECORDS",
             "SEND_GAME_BROADCAST",
             "SEND_GAME_LEAGUE",
-            "LEAGUE_INDEX"
+            "LEAGUE_INDEX",
+            "FAVORITE_TEAM_SEARCH",
+            "CURRENT_FAVORITES"
         ],
         "projectType": "native",
         "resources": {
