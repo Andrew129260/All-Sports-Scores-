@@ -14,8 +14,6 @@ static GameUpdateCallback on_game_update;
 
 static char empty_string[] = "";
 
-#define GAMES_LIST_INIT_ARRAY 4
-
 static void safe_free(char *str) {
     if (str != NULL && str != empty_string) {
         free(str);
@@ -126,18 +124,24 @@ static char *memorize_dict_string(const DictionaryIterator *dict, uint32_t key, 
         APP_LOG(APP_LOG_LEVEL_WARNING, "DIAGNOSTIC: Key %s is NOT a string! Type: %d", debug_name, tuple->type);
         return empty_string;
     }
-    if (strlen(tuple->value->cstring) == 0) {
+
+    uint16_t max_len = tuple->length;
+    uint16_t actual_len = 0;
+    while (actual_len < max_len && tuple->value->cstring[actual_len] != '\0') {
+        actual_len++;
+    }
+
+    if (actual_len == 0) {
         return empty_string;
     }
     
-    int len = strlen(tuple->value->cstring);
-    char *str = malloc(len + 1);
+    char *str = malloc(actual_len + 1);
     
     if (str != NULL) {
-        strncpy(str, tuple->value->cstring, len);
-        str[len] = '\0';
+        memcpy(str, tuple->value->cstring, actual_len);
+        str[actual_len] = '\0';
     } else {
-        APP_LOG(APP_LOG_LEVEL_ERROR, "DIAGNOSTIC: MALLOC FAILED for %s (Len: %d)", debug_name, len);
+        APP_LOG(APP_LOG_LEVEL_ERROR, "DIAGNOSTIC: MALLOC FAILED for %s (Len: %d)", debug_name, actual_len);
         return empty_string; 
     }
     
@@ -229,10 +233,17 @@ void handle_games_recieved(DictionaryIterator *iter) {
         return;
     }
 
-    if (data == GAMES_LIST_INIT_ARRAY) {
+    if (data == GamesListInitArray) {
         int total_games = get_dict_int_safe(iter, MESSAGE_KEY_SEND_GAME_ID, 0);
         APP_LOG(APP_LOG_LEVEL_INFO, "DIAGNOSTIC: Init Array. Total expected: %d", total_games);
         
+        // Sanity check to prevent integer overflow during allocation.
+        // Cap the number of games to a reasonable upper limit (e.g., 200).
+        if (total_games > 200) {
+            APP_LOG(APP_LOG_LEVEL_WARNING, "SECURITY: Total games (%d) exceeded safe limit. Capping at 200.", total_games);
+            total_games = 200;
+        }
+
         free_games_array(); 
 
         if (total_games > 0) {

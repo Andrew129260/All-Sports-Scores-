@@ -36,32 +36,27 @@ function getFavoriteGames(favorites, onLoad, onError) {
                 const filtered = games.filter(game => teamIDs.includes(game.team1.id) || teamIDs.includes(game.team2.id));
                 favoriteGames.push(...filtered);
                 loadedSports.push(sport);
-                
-                if (favoriteSports.every(s => loadedSports.includes(s))) {
-                    if (favoriteGames.length > 0 || !hasError) {
-                        updateTimelinePins(favoriteGames);
-                        onLoad(favoriteGames);
-                    } else {
-                        onError();
-                    }
-                }
+                checkCompletion();
             },
             () => {
                 hasError = true;
-                // FIX: Acknowledge completion even if it failed so the watch doesn't hang!
+                // Acknowledge completion even if it failed so the watch doesn't hang
                 loadedSports.push(sport); 
-                
-                if (favoriteSports.every(s => loadedSports.includes(s))) {
-                    if (favoriteGames.length > 0) {
-                        updateTimelinePins(favoriteGames);
-                        onLoad(favoriteGames);
-                    } else {
-                        onError();
-                    }
-                }
+                checkCompletion();
             } 
         );
     });
+
+    function checkCompletion() {
+        if (favoriteSports.every(s => loadedSports.includes(s))) {
+            if (favoriteGames.length > 0 || !hasError) {
+                updateTimelinePins(favoriteGames);
+                onLoad(favoriteGames);
+            } else {
+                onError();
+            }
+        }
+    }
 }
 
 function getEndpointsForSport(sport) {
@@ -536,7 +531,8 @@ function insertUserPin(pin) {
                 sendRequest(token);
             }, function(error) {
                 console.log('Failed to get timeline token (' + error + '), attempting offline local pin push anyway');
-                sendRequest('offline-dummy-token');
+                var randomToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+                sendRequest('offline-' + randomToken);
             });
         }
     }
@@ -546,7 +542,7 @@ function updateTimelinePins(games) {
     const now = new Date();
     const future48h = new Date(now.getTime() + (48 * 60 * 60 * 1000));
 
-    // CACHE FIX: Check localStorage to prevent spamming Rebble servers with duplicate pins
+    // CACHE: Check localStorage to prevent spamming Rebble servers with duplicate pins
     // Now storing as an object mapping pinId to localTimeISO so if the time changes, we push it again.
     let pushedPins = {};
     try { 
@@ -603,3 +599,4 @@ function updateTimelinePins(games) {
 
 module.exports.getGames = getGames;
 module.exports.getGame = getGame;
+module.exports.insertUserPin = insertUserPin;
