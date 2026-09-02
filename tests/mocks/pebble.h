@@ -1,6 +1,12 @@
 #ifndef PEBBLE_H
 #define PEBBLE_H
 
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
+
 // Mock Pebble resource IDs for testing
 #define RESOURCE_ID_FOOTBALL_16 1
 #define RESOURCE_ID_BASEBALL_16 2
@@ -25,5 +31,116 @@
 #define RESOURCE_ID_IMAGE_SPORT_AFL25 109
 #define RESOURCE_ID_IMAGE_SPORT_MMA25 110
 #define RESOURCE_ID_STAR_25 111
+
+// Logging
+#define APP_LOG_LEVEL_ERROR 0
+#define APP_LOG_LEVEL_WARNING 1
+#define APP_LOG_LEVEL_INFO 2
+#define APP_LOG_LEVEL_DEBUG 3
+
+#define APP_LOG(level, fmt, ...) printf("[%d] " fmt "\n", level, ##__VA_ARGS__)
+
+// Memory functions
+static inline uint32_t heap_bytes_free() { return 1024 * 1024; }
+
+// AppMessage
+typedef enum {
+  APP_MSG_OK = 0,
+  APP_MSG_SEND_TIMEOUT,
+  APP_MSG_SEND_REJECTED,
+  APP_MSG_NOT_CONNECTED,
+  APP_MSG_APP_NOT_RUNNING,
+  APP_MSG_INVALID_ARGS,
+  APP_MSG_BUSY,
+  APP_MSG_BUFFER_OVERFLOW,
+  APP_MSG_ALREADY_RELEASED,
+  APP_MSG_CALLBACK_ALREADY_REGISTERED,
+  APP_MSG_CALLBACK_NOT_REGISTERED,
+  APP_MSG_OUT_OF_MEMORY,
+  APP_MSG_CLOSED,
+  APP_MSG_INTERNAL_ERROR,
+} AppMessageResult;
+
+// Tuplets and Dictionary
+typedef enum {
+  TUPLE_BYTE_ARRAY = 0,
+  TUPLE_CSTRING = 1,
+  TUPLE_UINT = 2,
+  TUPLE_INT = 3,
+} TupleType;
+
+typedef struct {
+  uint32_t key;
+  TupleType type;
+  uint16_t length;
+  union {
+    uint8_t *data;
+    char *cstring;
+    uint32_t uint32;
+    uint16_t uint16;
+    uint8_t uint8;
+    int32_t int32;
+    int16_t int16;
+    int8_t int8;
+  } value[];
+} Tuple;
+
+typedef struct {
+    uint32_t key;
+    TupleType type;
+    union {
+        const char *cstring;
+        int32_t integer;
+    };
+    uint16_t integer_width;
+} Tuplet;
+
+#define TupletInteger(k, v) ((Tuplet){.key = (k), .type = TUPLE_INT, .integer = (v), .integer_width = 4})
+
+typedef struct DictionaryIterator {
+    // A simple mock for dictionary iterator
+    void *dictionary;
+    const void *end;
+    Tuple *cursor;
+} DictionaryIterator;
+
+AppMessageResult app_message_outbox_begin(DictionaryIterator **iterator);
+AppMessageResult app_message_outbox_send(void);
+AppMessageResult dict_write_tuplet(DictionaryIterator *iter, const Tuplet *tuplet);
+Tuple *dict_find(const DictionaryIterator *iter, uint32_t key);
+
+// Error definition is in models.h, so we remove it here to avoid duplication
+// (I accidentally restored it earlier)
+
+// Additional keys for tests
+#define MESSAGE_KEY_LOAD_GAMES 100
+#define MESSAGE_KEY_REQUEST_ID 101
+#define MESSAGE_KEY_LEAGUE_INDEX 102
+#define MESSAGE_KEY_UPDATE_GAME_ID 103
+#define MESSAGE_KEY_UPDATE_GAME_SPORT 104
+#define MESSAGE_KEY_SEND_GAME_ID 105
+#define MESSAGE_KEY_SEND_GAME_SPORT 106
+#define MESSAGE_KEY_SEND_GAME_LEAGUE 107
+#define MESSAGE_KEY_SEND_GAME_TEAM_1_NAME 108
+#define MESSAGE_KEY_SEND_GAME_TEAM_2_NAME 109
+#define MESSAGE_KEY_SEND_GAME_TEAM_1_SCORE 110
+#define MESSAGE_KEY_SEND_GAME_TEAM_2_SCORE 111
+#define MESSAGE_KEY_SEND_GAME_TEAM_1_ID 112
+#define MESSAGE_KEY_SEND_GAME_TEAM_1_FAVORITE 113
+#define MESSAGE_KEY_SEND_GAME_TEAM_1_WINNER 114
+#define MESSAGE_KEY_SEND_GAME_TEAM_1_RECORD 115
+#define MESSAGE_KEY_SEND_GAME_TEAM_2_ID 116
+#define MESSAGE_KEY_SEND_GAME_TEAM_2_FAVORITE 117
+#define MESSAGE_KEY_SEND_GAME_TEAM_2_WINNER 118
+#define MESSAGE_KEY_SEND_GAME_TEAM_2_RECORD 119
+#define MESSAGE_KEY_SEND_GAME_POSSESSION 120
+#define MESSAGE_KEY_SEND_GAME_TIME 121
+#define MESSAGE_KEY_SEND_GAME_DETAILS 122
+#define MESSAGE_KEY_SEND_GAME_BROADCAST 123
+#define MESSAGE_KEY_SEND_GAME_LIST 124
+#define MESSAGE_KEY_SEND_GAME_UPDATE 125
+
+// Redefine rand to a known value to make tests deterministic
+#define rand() 12345
 
 #endif
