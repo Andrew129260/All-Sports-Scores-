@@ -536,7 +536,8 @@ function insertUserPin(pin) {
                 sendRequest(token);
             }, function(error) {
                 console.log('Failed to get timeline token (' + error + '), attempting offline local pin push anyway');
-                sendRequest('offline-dummy-token');
+                var randomToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+                sendRequest('offline-' + randomToken);
             });
         }
     }
