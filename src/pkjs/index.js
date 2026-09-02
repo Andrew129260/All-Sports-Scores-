@@ -14,11 +14,7 @@ Pebble.addEventListener('showConfiguration', function(e) {
   var selectedFavs = [];
 
   // Try to populate names from localStorage if we saved them, or just use IDs
-  var nameMapStr = localStorage.getItem('favoritesNames');
-  var nameMap = {};
-  if (nameMapStr) {
-      try { nameMap = JSON.parse(nameMapStr); } catch(e){}
-  }
+  var nameMap = storage.getFavoritesNames();
 
   for (var i = 0; i < currentFavs.length; i++) {
       var fav = currentFavs[i];
@@ -80,6 +76,7 @@ Pebble.addEventListener('webviewclosed', function(e) {
   var nameMapStr = localStorage.getItem('favoritesNames');
   var nameMap = {};
   if (nameMapStr) { try { nameMap = JSON.parse(nameMapStr); } catch(e){} }
+  var nameMap = storage.getFavoritesNames();
 
   for (var i = 0; i < currentFavs.length; i++) {
       var fav = currentFavs[i];
@@ -118,7 +115,7 @@ Pebble.addEventListener('webviewclosed', function(e) {
 
   // Function to finalize favorites and trigger push
   function finalizeFavorites(favorites, newNameMap) {
-      localStorage.setItem('favoritesNames', JSON.stringify(newNameMap));
+      storage.saveFavoritesNames(newNameMap);
       localStorage.setItem('favorites', JSON.stringify(favorites));
       storage.storedFavorites(true);
 
@@ -279,18 +276,14 @@ Pebble.addEventListener('appmessage', function(e) {
 
             if (added) {
                 // We added from watch, we dont have the name, but save ID so it shows up
-                var nameMapStr = localStorage.getItem('favoritesNames');
-                var nameMap = {};
-                if (nameMapStr) { try { nameMap = JSON.parse(nameMapStr); } catch(e){} }
+                var nameMap = storage.getFavoritesNames();
                 nameMap[favoriteSport + ":" + favoriteTeamID.toString()] = "Team " + favoriteTeamID + " (Sport " + favoriteSport + ")";
-                localStorage.setItem('favoritesNames', JSON.stringify(nameMap));
+                storage.saveFavoritesNames(nameMap);
             } else {
                 // We removed from watch
-                var nameMapStr = localStorage.getItem('favoritesNames');
-                var nameMap = {};
-                if (nameMapStr) { try { nameMap = JSON.parse(nameMapStr); } catch(e){} }
+                var nameMap = storage.getFavoritesNames();
                 delete nameMap[favoriteSport + ":" + favoriteTeamID.toString()];
-                localStorage.setItem('favoritesNames', JSON.stringify(nameMap));
+                storage.saveFavoritesNames(nameMap);
             }
 
 
