@@ -46,6 +46,16 @@
                 "messageKey": "FAVORITE_TEAM_SEARCH",
                 "label": "Search & Add Team",
                 "defaultValue": ""
+            },
+            {
+                "type": "submit",
+                "primary": true,
+                "defaultValue": "Search",
+                "id": "searchButton"
+            },
+            {
+                "type": "text",
+                "defaultValue": "Note: Pressing Search will save and close this page, adding the team in the background."
             }
         ]
     },
