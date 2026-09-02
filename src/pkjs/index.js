@@ -153,6 +153,10 @@ Pebble.addEventListener('webviewclosed', function(e) {
                   else if (sportStr === "baseball" && bestMatch.defaultLeagueSlug === "mlb") sportId = models.sports.MLB;
                   else if (sportStr === "hockey" && bestMatch.defaultLeagueSlug === "nhl") sportId = models.sports.NHL;
                   else if (sportStr === "basketball" && (bestMatch.defaultLeagueSlug === "nba" || bestMatch.defaultLeagueSlug === "mens-college-basketball" || bestMatch.defaultLeagueSlug === "womens-college-basketball")) sportId = models.sports.NBA;
+                  if (sportStr === "football" && bestMatch.defaultLeagueSlug === "nfl") sportId = models.sports.NFL;
+                  else if (sportStr === "baseball" && bestMatch.defaultLeagueSlug === "mlb") sportId = models.sports.MLB;
+                  else if (sportStr === "hockey" && bestMatch.defaultLeagueSlug === "nhl") sportId = models.sports.NHL;
+                  else if (sportStr === "basketball" && bestMatch.defaultLeagueSlug === "nba") sportId = models.sports.NBA;
                   else if (sportStr === "soccer") sportId = models.sports.MLS; // Note: We map all soccer to MLS for this app currently
                   else if (sportStr === "australian-football") sportId = models.sports.AFL;
                   else if (sportStr === "cricket") sportId = models.sports.CRICKET;
