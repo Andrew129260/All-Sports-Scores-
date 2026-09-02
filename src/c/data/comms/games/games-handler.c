@@ -231,6 +231,13 @@ void handle_games_recieved(DictionaryIterator *iter) {
         int total_games = get_dict_int_safe(iter, MESSAGE_KEY_SEND_GAME_ID, 0);
         APP_LOG(APP_LOG_LEVEL_INFO, "DIAGNOSTIC: Init Array. Total expected: %d", total_games);
         
+        // Sanity check to prevent integer overflow during allocation.
+        // Cap the number of games to a reasonable upper limit (e.g., 200).
+        if (total_games > 200) {
+            APP_LOG(APP_LOG_LEVEL_WARNING, "SECURITY: Total games (%d) exceeded safe limit. Capping at 200.", total_games);
+            total_games = 200;
+        }
+
         free_games_array(); 
 
         if (total_games > 0) {
