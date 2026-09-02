@@ -5,7 +5,7 @@ describe('storage.js', () => {
 
     beforeEach(() => {
         jest.resetModules();
-        storage = require('./storage');
+        storage = require('../storage');
         // Mock localStorage
         store = {};
         global.localStorage = {
@@ -99,6 +99,13 @@ describe('storage.js', () => {
 
             const result = storage.storedFavorites();
             expect(result).toEqual(favorites);
+        });
+
+        it('should return empty array and not crash if localStorage contains invalid JSON', () => {
+            store['favorites'] = 'invalid_json{[';
+
+            const result = storage.storedFavorites();
+            expect(result).toEqual([]);
         });
     });
 });

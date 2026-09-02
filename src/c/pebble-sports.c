@@ -1,4 +1,6 @@
 #include "pebble.h"
+#include <stdlib.h>
+#include <time.h>
 #include "sports-menu.h"
 #include "src/c/data/comms/comms.h"
 #include "data/comms/prefs/prefs-handler.h"
@@ -6,6 +8,7 @@
 
 static void init() {
     srand(time(NULL));
+
     load_settings();
     setup_comms();
     
