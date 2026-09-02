@@ -31,7 +31,30 @@ function updateFavorite(favoriteTeam) {
 
 }
 
+let cachedFavoritesNames = null;
+
+function getFavoritesNames(forceReload = false) {
+    if (forceReload) { cachedFavoritesNames = null; }
+    if (cachedFavoritesNames !== null) {
+        return cachedFavoritesNames;
+    }
+    const nameMapStr = localStorage.getItem('favoritesNames');
+    let nameMap = {};
+    if (nameMapStr) {
+        try { nameMap = JSON.parse(nameMapStr); } catch(e){}
+    }
+    cachedFavoritesNames = nameMap;
+    return cachedFavoritesNames;
+}
+
+function saveFavoritesNames(nameMap) {
+    cachedFavoritesNames = nameMap;
+    localStorage.setItem('favoritesNames', JSON.stringify(nameMap));
+}
+
 module.exports = {
     storedFavorites: storedFavorites,
-    updateFavorite: updateFavorite
+    updateFavorite: updateFavorite,
+    getFavoritesNames: getFavoritesNames,
+    saveFavoritesNames: saveFavoritesNames
 }
