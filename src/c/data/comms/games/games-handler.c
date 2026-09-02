@@ -291,24 +291,26 @@ void handle_game_update_recieved(DictionaryIterator *iter) {
 
     int game_id = get_dict_int_safe(iter, MESSAGE_KEY_SEND_GAME_ID, 0);
 
-    for (int i = 0; i < games_count; i++) {
-        if (games != NULL && games[i].id == game_id) {
-            safe_free(games[i].league);
-            safe_free(games[i].team1.name);
-            safe_free(games[i].team1.score);
-            safe_free(games[i].team1.record);
-            safe_free(games[i].team2.name);
-            safe_free(games[i].team2.score);
-            safe_free(games[i].team2.record);
-            safe_free(games[i].time);
-            safe_free(games[i].summary);
-            safe_free(games[i].details);
-            safe_free(games[i].broadcast);
+    if (games != NULL) {
+        for (int i = 0; i < games_count; i++) {
+            if (games[i].id == game_id) {
+                safe_free(games[i].league);
+                safe_free(games[i].team1.name);
+                safe_free(games[i].team1.score);
+                safe_free(games[i].team1.record);
+                safe_free(games[i].team2.name);
+                safe_free(games[i].team2.score);
+                safe_free(games[i].team2.record);
+                safe_free(games[i].time);
+                safe_free(games[i].summary);
+                safe_free(games[i].details);
+                safe_free(games[i].broadcast);
 
-            game_set(&games[i], iter);
+                game_set(&games[i], iter);
 
-            if (on_game_update) on_game_update(GameUpdated);
-            return;
+                if (on_game_update) on_game_update(GameUpdated);
+                return;
+            }
         }
     }
 }
