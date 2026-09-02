@@ -4,7 +4,7 @@
 #define MODELS_H_
 
 typedef enum {
-    GamesListItem, GamesListLastItem, GamesListNoGames, GamesListNetworkError
+    GamesListItem, GamesListLastItem, GamesListNoGames, GamesListNetworkError, GamesListInitArray
 } GamesListState;
 
 typedef enum {
@@ -15,7 +15,7 @@ typedef enum {
     ConnectionError, NetworkError, NoGames
 } AppError;
 
-// THE FIX: Perfectly matched to the JavaScript enumeration
+// Perfectly matched to the JavaScript enumeration
 typedef enum {
     Favorites = 0, 
     SportNFL = 1, 

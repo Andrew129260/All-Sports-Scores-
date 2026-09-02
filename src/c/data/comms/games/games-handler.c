@@ -14,8 +14,6 @@ static GameUpdateCallback on_game_update;
 
 static char empty_string[] = "";
 
-#define GAMES_LIST_INIT_ARRAY 4
-
 static void safe_free(char *str) {
     if (str != NULL && str != empty_string) {
         free(str);
@@ -229,7 +227,7 @@ void handle_games_recieved(DictionaryIterator *iter) {
         return;
     }
 
-    if (data == GAMES_LIST_INIT_ARRAY) {
+    if (data == GamesListInitArray) {
         int total_games = get_dict_int_safe(iter, MESSAGE_KEY_SEND_GAME_ID, 0);
         APP_LOG(APP_LOG_LEVEL_INFO, "DIAGNOSTIC: Init Array. Total expected: %d", total_games);
         
