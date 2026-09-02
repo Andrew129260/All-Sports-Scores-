@@ -272,5 +272,80 @@ describe('getGame', () => {
         }, () => {
             done();
         });
+describe('insertUserPin', () => {
+    let originalConsoleLog;
+    let xhrMock;
+
+    beforeEach(() => {
+        // Mock console.log to keep test output clean
+        originalConsoleLog = console.log;
+        console.log = jest.fn();
+
+        xhrMock = {
+            open: jest.fn(),
+            send: jest.fn(),
+            setRequestHeader: jest.fn(),
+            readyState: 4,
+            status: 200,
+            responseText: ''
+        };
+        global.XMLHttpRequest.mockImplementation(() => xhrMock);
+
+        // Ensure Pebble is clean before each test
+        delete global.Pebble;
+    });
+
+    afterEach(() => {
+        console.log = originalConsoleLog;
+        jest.clearAllMocks();
+    });
+
+    test('uses Pebble.insertTimelinePin directly when available', () => {
+        global.Pebble = {
+            insertTimelinePin: jest.fn()
+        };
+
+        const pin = { id: 'test-pin-123', time: new Date().toISOString() };
+        api.insertUserPin(pin);
+
+        expect(global.Pebble.insertTimelinePin).toHaveBeenCalledWith(pin);
+        expect(global.XMLHttpRequest).not.toHaveBeenCalled();
+    });
+
+    test('falls back to XMLHttpRequest with token when insertTimelinePin is unavailable', () => {
+        global.Pebble = {
+            getTimelineToken: jest.fn((success, failure) => success('valid-token'))
+        };
+
+        const pin = { id: 'test-pin-456', time: new Date().toISOString() };
+        api.insertUserPin(pin);
+
+        expect(global.XMLHttpRequest).toHaveBeenCalled();
+        expect(xhrMock.open).toHaveBeenCalledWith('PUT', 'https://timeline-api.rebble.io/v1/user/pins/test-pin-456', true);
+        expect(xhrMock.setRequestHeader).toHaveBeenCalledWith('Content-Type', 'application/json');
+        expect(xhrMock.setRequestHeader).toHaveBeenCalledWith('X-User-Token', 'valid-token');
+        expect(xhrMock.send).toHaveBeenCalledWith(JSON.stringify(pin));
+    });
+
+    test('falls back to XMLHttpRequest with dummy token when token fetch fails', () => {
+        global.Pebble = {
+            getTimelineToken: jest.fn((success, failure) => failure('Offline'))
+        };
+
+        const pin = { id: 'test-pin-789', time: new Date().toISOString() };
+        api.insertUserPin(pin);
+
+        expect(global.XMLHttpRequest).toHaveBeenCalled();
+        expect(xhrMock.open).toHaveBeenCalledWith('PUT', 'https://timeline-api.rebble.io/v1/user/pins/test-pin-789', true);
+        expect(xhrMock.setRequestHeader).toHaveBeenCalledWith('X-User-Token', 'offline-dummy-token');
+        expect(xhrMock.send).toHaveBeenCalledWith(JSON.stringify(pin));
+    });
+
+    test('does nothing when Pebble is undefined', () => {
+        // global.Pebble is already deleted in beforeEach
+        const pin = { id: 'test-pin-000' };
+        api.insertUserPin(pin);
+
+        expect(global.XMLHttpRequest).not.toHaveBeenCalled();
     });
 });
