@@ -36,32 +36,27 @@ function getFavoriteGames(favorites, onLoad, onError) {
                 const filtered = games.filter(game => teamIDs.includes(game.team1.id) || teamIDs.includes(game.team2.id));
                 favoriteGames.push(...filtered);
                 loadedSports.push(sport);
-                
-                if (favoriteSports.every(s => loadedSports.includes(s))) {
-                    if (favoriteGames.length > 0 || !hasError) {
-                        updateTimelinePins(favoriteGames);
-                        onLoad(favoriteGames);
-                    } else {
-                        onError();
-                    }
-                }
+                checkCompletion();
             },
             () => {
                 hasError = true;
-                // FIX: Acknowledge completion even if it failed so the watch doesn't hang!
+                // Acknowledge completion even if it failed so the watch doesn't hang
                 loadedSports.push(sport); 
-                
-                if (favoriteSports.every(s => loadedSports.includes(s))) {
-                    if (favoriteGames.length > 0) {
-                        updateTimelinePins(favoriteGames);
-                        onLoad(favoriteGames);
-                    } else {
-                        onError();
-                    }
-                }
+                checkCompletion();
             } 
         );
     });
+
+    function checkCompletion() {
+        if (favoriteSports.every(s => loadedSports.includes(s))) {
+            if (favoriteGames.length > 0 || !hasError) {
+                updateTimelinePins(favoriteGames);
+                onLoad(favoriteGames);
+            } else {
+                onError();
+            }
+        }
+    }
 }
 
 function getEndpointsForSport(sport) {
