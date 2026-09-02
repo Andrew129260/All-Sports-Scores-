@@ -291,7 +291,7 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
                             if (activeLeagues) {
                                 activeLeagues.forEach(league => {
                                     if (league.id) {
-                                        let dynamicUrl = "https://site.api.espn.com/apis/site/v2/sports/" + sportString + "/" + league.id;
+                                        let dynamicUrl = "https://site.api.espn.com/apis/site/v2/sports/" + encodeURIComponent(sportString) + "/" + encodeURIComponent(league.id);
                                         if (!fetchTasks.some(t => t.url === dynamicUrl)) {
                                             console.log("[DYNAMIC DISCOVERY] Added Active " + sportString.toUpperCase() + " Tour ID: " + league.id + " (" + (league.name || "Tour") + ")");
                                             fetchTasks.push({ url: dynamicUrl, league: league.abbreviation || "International", params: "" });
@@ -520,7 +520,7 @@ function insertUserPin(pin) {
         // requests to timeline-api.rebble.io and creates local pins!
         var sendRequest = function(token) {
             var req = new XMLHttpRequest();
-            req.open('PUT', 'https://timeline-api.rebble.io/v1/user/pins/' + pin.id, true);
+            req.open('PUT', 'https://timeline-api.rebble.io/v1/user/pins/' + encodeURIComponent(pin.id), true);
             req.setRequestHeader('Content-Type', 'application/json');
             req.setRequestHeader('X-User-Token', '' + token);
 
