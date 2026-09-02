@@ -70,7 +70,13 @@ Pebble.addEventListener('webviewclosed', function(e) {
       keptFavs = [keptFavs];
   }
 
+  var keptFavsMap = {};
+  for (var k = 0; k < keptFavs.length; k++) {
+      keptFavsMap[keptFavs[k]] = true;
+  }
+
   var newFavorites = [];
+  var newFavoritesMap = {};
   var nameMapStr = localStorage.getItem('favoritesNames');
   var nameMap = {};
   if (nameMapStr) { try { nameMap = JSON.parse(nameMapStr); } catch(e){} }
@@ -78,8 +84,9 @@ Pebble.addEventListener('webviewclosed', function(e) {
   for (var i = 0; i < currentFavs.length; i++) {
       var fav = currentFavs[i];
       var key = fav.sport + ":" + fav.teamID;
-      if (keptFavs.indexOf(key) !== -1) {
+      if (keptFavsMap[key]) {
           newFavorites.push(fav);
+          newFavoritesMap[key] = true;
       } else {
           // It was removed
           delete nameMap[key];
@@ -182,9 +189,10 @@ Pebble.addEventListener('webviewclosed', function(e) {
                           var key = sportId + ":" + teamIdStr;
 
                           // Check if already in favorites
-                          var exists = newFavorites.some(function(f) { return f.sport == sportId && f.teamID == teamIdStr; });
+                          var exists = !!newFavoritesMap[key];
                           if (!exists) {
                               newFavorites.push(newTeam);
+                              newFavoritesMap[key] = true;
                               nameMap[key] = bestMatch.displayName;
                               console.log("Added new favorite from search: " + bestMatch.displayName);
                           } else {
