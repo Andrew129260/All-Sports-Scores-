@@ -604,3 +604,4 @@ function updateTimelinePins(games) {
 
 module.exports.getGames = getGames;
 module.exports.getGame = getGame;
+module.exports.insertUserPin = insertUserPin;
