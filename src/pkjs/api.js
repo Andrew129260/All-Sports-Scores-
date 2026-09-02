@@ -312,7 +312,7 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
 }
 
 function getGame(id, sport, onLoad, onError) {
-    getGamesForSport(sport, null, (games) => { 
+    module.exports.getGamesForSport(sport, null, (games) => {
             let foundGame = games.find(g => g.id == id || g.eventId == id);
             if (foundGame == undefined) {
                 onError();
@@ -599,4 +599,6 @@ function updateTimelinePins(games) {
 
 module.exports.getGames = getGames;
 module.exports.getGame = getGame;
+module.exports.getGamesForSport = getGamesForSport;
+module.exports.getEndpointsForSport = getEndpointsForSport;
 module.exports.insertUserPin = insertUserPin;
