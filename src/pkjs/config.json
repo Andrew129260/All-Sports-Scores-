@@ -1,9 +1,9 @@
 [
-    { 
-        "type": "heading", 
+    {
+        "type": "heading",
         "defaultValue": "Sports Settings",
         "size": 1
-    }, 
+    },
     {
         "type": "section",
         "items": [
@@ -15,8 +15,57 @@
                 "type": "checkboxgroup",
                 "messageKey": "CONFIG_LEAGUES",
                 "label": "Visible Leagues",
-                "defaultValue": [true, true, true, true],
-                "options": ["NFL", "MLB", "NHL", "NBA"]
+                "defaultValue": [
+                    true,
+                    true,
+                    true,
+                    true
+                ],
+                "options": [
+                    "NFL",
+                    "MLB",
+                    "NHL",
+                    "NBA"
+                ]
+            }
+        ]
+    },
+    {
+        "type": "section",
+        "items": [
+            {
+                "type": "heading",
+                "defaultValue": "Favorite Teams"
+            },
+            {
+                "type": "text",
+                "defaultValue": "Search for a team to add to your favorites. Example: 'Diamondbacks' or 'Cowboys'."
+            },
+            {
+                "type": "input",
+                "messageKey": "FAVORITE_TEAM_SEARCH",
+                "label": "Search & Add Team",
+                "defaultValue": ""
+            }
+        ]
+    },
+    {
+        "type": "section",
+        "items": [
+            {
+                "type": "heading",
+                "defaultValue": "Manage Favorites"
+            },
+            {
+                "type": "text",
+                "defaultValue": "Uncheck a team to remove it from your favorites."
+            },
+            {
+                "type": "checkboxgroup",
+                "messageKey": "CURRENT_FAVORITES",
+                "label": "Your Favorites",
+                "defaultValue": [],
+                "options": []
             }
         ]
     },
@@ -33,17 +82,17 @@
                 "defaultValue": "final-only",
                 "label": "Show Records",
                 "options": [
-                    { 
+                    {
                         "label": "Never",
-                        "value": "never" 
+                        "value": "never"
                     },
-                    { 
+                    {
                         "label": "Final Scores Only",
-                        "value": "final-only" 
+                        "value": "final-only"
                     },
-                    { 
+                    {
                         "label": "Always",
-                        "value": "always" 
+                        "value": "always"
                     }
                 ]
             }
