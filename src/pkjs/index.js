@@ -61,7 +61,10 @@ Pebble.addEventListener('webviewclosed', function(e) {
 
   // 1. Process CURRENT_FAVORITES to see what was unchecked and remove them
   var currentFavs = storage.storedFavorites();
-  var keptFavs = dict['CURRENT_FAVORITES'] || [];
+  var rawSettings = JSON.parse(decodeURIComponent(e.response));
+  var keptFavs = rawSettings['CURRENT_FAVORITES'] ? rawSettings['CURRENT_FAVORITES'].value : [];
+  var searchQuery = rawSettings['FAVORITE_TEAM_SEARCH'] ? rawSettings['FAVORITE_TEAM_SEARCH'].value : '';
+
   if (!Array.isArray(keptFavs)) {
       keptFavs = [keptFavs];
   }
@@ -82,9 +85,21 @@ Pebble.addEventListener('webviewclosed', function(e) {
       }
   }
 
-  var searchQuery = dict['FAVORITE_TEAM_SEARCH'];
+
   delete dict['FAVORITE_TEAM_SEARCH'];
   delete dict['CURRENT_FAVORITES'];
+
+  // Workaround for Clay appending keys even if we delete them from dict.
+  // Clay stores its settings in localStorage 'clay-settings' using the message keys.
+  // When we hit save, the raw response string often includes the dynamic keys and sends it directly via sendAppMessage if we aren't careful,
+  // or it errors out if the keys aren't in messageKeys array.
+  // We added FAVORITE_TEAM_SEARCH and CURRENT_FAVORITES to package.json to stop the NaN / Unknown message key error on watch.
+
+  var messageKeys = require('message_keys');
+  if (messageKeys.FAVORITE_TEAM_SEARCH !== undefined) delete dict[messageKeys.FAVORITE_TEAM_SEARCH];
+  if (messageKeys.CURRENT_FAVORITES !== undefined) delete dict[messageKeys.CURRENT_FAVORITES];
+
+
 
   // Push standard settings to Pebble watch (leagues and display options)
   Pebble.sendAppMessage(dict, function() {
@@ -284,4 +299,4 @@ Pebble.addEventListener('appmessage', function(e) {
             );
             break;
     }
-});
+})
