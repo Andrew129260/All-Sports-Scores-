@@ -9,7 +9,11 @@ function storedFavorites(forceReload = false) {
     if (storedOrNull == null) {
         cachedFavorites = [];
     } else {
-        cachedFavorites = JSON.parse(storedOrNull);
+        try {
+            cachedFavorites = JSON.parse(storedOrNull);
+        } catch (e) {
+            cachedFavorites = [];
+        }
     }
     return cachedFavorites;
 }
