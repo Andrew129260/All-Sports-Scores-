@@ -228,3 +228,49 @@ describe('API Parsing logic', () => {
         xhrMock.onload();
     });
 });
+
+describe('getGame', () => {
+    let mockGetGamesForSport;
+
+    beforeEach(() => {
+        // mock getGamesForSport for the test since we exported it
+        mockGetGamesForSport = jest.spyOn(api, 'getGamesForSport').mockImplementation((sport, _, callback, errCallback) => {
+            const fakeGames = [
+                { id: "100", eventId: "event100", name: "game 1" },
+                { id: "200", eventId: "event200", name: "game 2" }
+            ];
+            callback(fakeGames);
+        });
+    });
+
+    afterEach(() => {
+        jest.restoreAllMocks();
+    });
+
+    test('should call onLoad with found game by id', (done) => {
+        api.getGame("100", models.sports.NFL, (game) => {
+            expect(game.id).toBe("100");
+            done();
+        }, () => {
+            done.fail('Should not call error callback');
+        });
+    });
+
+    test('should call onLoad with found game by eventId', (done) => {
+        api.getGame("event200", models.sports.NFL, (game) => {
+            expect(game.id).toBe("200");
+            expect(game.eventId).toBe("event200");
+            done();
+        }, () => {
+            done.fail('Should not call error callback');
+        });
+    });
+
+    test('should call onError if game is not found', (done) => {
+        api.getGame("unknown_id", models.sports.NFL, () => {
+            done.fail('Should not call onLoad callback');
+        }, () => {
+            done();
+        });
+    });
+});
