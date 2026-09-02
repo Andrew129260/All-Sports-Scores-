@@ -5,6 +5,8 @@
 #include "image-cache.h"
 
 static void init() {
+    srand(time(NULL));
+
     load_settings();
     setup_comms();
     
