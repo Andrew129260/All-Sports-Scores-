@@ -127,11 +127,20 @@ Pebble.addEventListener('webviewclosed', function(e) {
 
               var bestMatch = null;
               if (data.results && data.results.length > 0) {
-                  // Find first team or player in results
+                  // Find first team
                   for (var r = 0; r < data.results.length; r++) {
-                      if ((data.results[r].type === 'team' || data.results[r].type === 'player') && data.results[r].contents && data.results[r].contents.length > 0) {
+                      if (data.results[r].type === 'team' && data.results[r].contents && data.results[r].contents.length > 0) {
                           bestMatch = data.results[r].contents[0];
                           break;
+                      }
+                  }
+                  // If no team found, try to find a player
+                  if (!bestMatch) {
+                      for (var r = 0; r < data.results.length; r++) {
+                          if (data.results[r].type === 'player' && data.results[r].contents && data.results[r].contents.length > 0) {
+                              bestMatch = data.results[r].contents[0];
+                              break;
+                          }
                       }
                   }
               }
