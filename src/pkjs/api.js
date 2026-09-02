@@ -547,7 +547,7 @@ function updateTimelinePins(games) {
     const now = new Date();
     const future48h = new Date(now.getTime() + (48 * 60 * 60 * 1000));
 
-    // CACHE FIX: Check localStorage to prevent spamming Rebble servers with duplicate pins
+    // CACHE: Check localStorage to prevent spamming Rebble servers with duplicate pins
     // Now storing as an object mapping pinId to localTimeISO so if the time changes, we push it again.
     let pushedPins = {};
     try { 
