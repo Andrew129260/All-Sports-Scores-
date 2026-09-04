@@ -231,6 +231,7 @@ void handle_games_recieved(DictionaryIterator *iter) {
 
     if (data == GAMES_LIST_INIT_ARRAY) {
         int total_games = get_dict_int_safe(iter, MESSAGE_KEY_SEND_GAME_ID, 0);
+        if (total_games > 200) total_games = 200; // Enforce strict upper bound limit to prevent integer overflow
         APP_LOG(APP_LOG_LEVEL_INFO, "DIAGNOSTIC: Init Array. Total expected: %d", total_games);
         
         free_games_array(); 
