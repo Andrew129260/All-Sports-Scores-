@@ -41,11 +41,6 @@ static void inbox_received_callback(DictionaryIterator *iter, void *context) {
         handle_favorite_change_result(iter);
     }
 
-    // A config change has been recieved
-    Tuple *config_tuple = dict_find(iter, MESSAGE_KEY_CONFIG_SHOW_RECORDS);
-    if (config_tuple) {
-        handle_config_recieved(iter);
-    }
 }
 
 static void inbox_dropped_callback(AppMessageResult reason, void *context) {

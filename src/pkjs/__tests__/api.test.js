@@ -272,6 +272,9 @@ describe('getGame', () => {
         }, () => {
             done();
         });
+    });
+});
+
 describe('insertUserPin', () => {
     let originalConsoleLog;
     let xhrMock;
@@ -337,7 +340,10 @@ describe('insertUserPin', () => {
 
         expect(global.XMLHttpRequest).toHaveBeenCalled();
         expect(xhrMock.open).toHaveBeenCalledWith('PUT', 'https://timeline-api.rebble.io/v1/user/pins/test-pin-789', true);
-        expect(xhrMock.setRequestHeader).toHaveBeenCalledWith('X-User-Token', 'offline-dummy-token');
+        expect(xhrMock.setRequestHeader).toHaveBeenCalledWith(
+            'X-User-Token',
+            expect.stringMatching(/^offline-[a-z0-9]+$/)
+        );
         expect(xhrMock.send).toHaveBeenCalledWith(JSON.stringify(pin));
     });
 

@@ -15,5 +15,4 @@
 #endif
 
 void load_settings();
-void handle_config_recieved(DictionaryIterator *iter);
 ClaySettings clay_settings;
