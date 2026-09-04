@@ -344,6 +344,7 @@ describe('insertUserPin', () => {
             'X-User-Token',
             expect.stringMatching(/^offline-[a-z0-9]+$/)
         );
+        expect(xhrMock.setRequestHeader).toHaveBeenCalledWith('X-User-Token', expect.any(String));
         expect(xhrMock.send).toHaveBeenCalledWith(JSON.stringify(pin));
     });
 

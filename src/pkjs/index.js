@@ -2,10 +2,12 @@ var models = require('./models');
 var storage = require('./storage');
 var comms = require('./comms');
 var api = require('./api');
+var messageKeys = require('message_keys');
 
 var Clay = require('@rebble/clay');
 var clayConfig = require('./config.json');
 var clay = new Clay(clayConfig, null, { autoHandleEvents: false });
+var messageKeys = require('message_keys');
 
 Pebble.addEventListener('showConfiguration', function(e) {
   // Update the options for the favorites checkboxes dynamically based on storage
@@ -56,7 +58,11 @@ Pebble.addEventListener('webviewclosed', function(e) {
   // 1. Process CURRENT_FAVORITES to see what was unchecked and remove them
   var currentFavs = storage.storedFavorites();
   var rawSettings = JSON.parse(decodeURIComponent(e.response));
+
+  var keptFavs = rawSettings['CURRENT_FAVORITES'] || (messageKeys.CURRENT_FAVORITES !== undefined ? rawSettings[messageKeys.CURRENT_FAVORITES] : []) || [];
   var keptFavs = rawSettings['CURRENT_FAVORITES'] ? rawSettings['CURRENT_FAVORITES'] : [];
+  var searchQuery = rawSettings['FAVORITE_TEAM_SEARCH'] || (messageKeys.FAVORITE_TEAM_SEARCH !== undefined ? rawSettings[messageKeys.FAVORITE_TEAM_SEARCH] : '') || '';
+
 
   if (!Array.isArray(keptFavs)) {
       keptFavs = [keptFavs];
@@ -84,6 +90,7 @@ Pebble.addEventListener('webviewclosed', function(e) {
   // or it errors out if the keys aren't in messageKeys array.
 
   var messageKeys = require('message_keys');
+  if (messageKeys.FAVORITE_TEAM_SEARCH !== undefined) delete dict[messageKeys.FAVORITE_TEAM_SEARCH];
   if (messageKeys.CURRENT_FAVORITES !== undefined) delete dict[messageKeys.CURRENT_FAVORITES];
 
   // Push standard settings to Pebble watch (leagues and display options)
@@ -97,6 +104,52 @@ Pebble.addEventListener('webviewclosed', function(e) {
   storage.saveFavoritesNames(nameMap);
   localStorage.setItem('favorites', JSON.stringify(newFavorites));
   storage.storedFavorites(true);
+  // Function to finalize favorites and trigger push
+  function finalizeFavorites(favorites, newNameMap) {
+      storage.saveFavoritesNames(newNameMap);
+      localStorage.setItem('favorites', JSON.stringify(favorites));
+      storage.storedFavorites(true);
+
+      api.getGames(models.sports.FAVORITES, null,
+          function() { console.log("Timeline background push triggered by settings update."); },
+          function() { console.log("Timeline background push failed."); }
+      );
+  }
+
+  // 2. Process search query if any
+  if (searchQuery && typeof searchQuery === 'string' && searchQuery.trim().length > 0) {
+      var query = searchQuery.trim();
+      var url = "https://site.web.api.espn.com/apis/search/v2?region=us&lang=en&query=" + encodeURIComponent(query) + "&limit=5";
+      var req = new XMLHttpRequest();
+      req.open('GET', url, true);
+      req.onload = function() {
+          if (req.status == 200) {
+              var data = JSON.parse(req.responseText);
+
+              var bestMatch = null;
+              if (data.results && data.results.length > 0) {
+                  // Prioritize finding a team in results
+                  // Find first team
+                  for (var r = 0; r < data.results.length; r++) {
+                      if (data.results[r].type === 'team' && data.results[r].contents && data.results[r].contents.length > 0) {
+                          bestMatch = data.results[r].contents[0];
+                          break;
+                      }
+                  }
+
+                  // If no team found, fallback to finding a player
+                  // If no team found, try to find a player
+                  if (!bestMatch) {
+                      for (var r = 0; r < data.results.length; r++) {
+                          if (data.results[r].type === 'player' && data.results[r].contents && data.results[r].contents.length > 0) {
+                              bestMatch = data.results[r].contents[0];
+                              break;
+                          }
+                      }
+                  }
+              }
+              if (bestMatch) {
+
 
   api.getGames(models.sports.FAVORITES, null,
       function() { console.log("Timeline background push triggered by settings update."); },

@@ -35,6 +35,35 @@
         "items": [
             {
                 "type": "heading",
+                "defaultValue": "Favorite Teams"
+            },
+            {
+                "type": "text",
+                "defaultValue": "Search for a team to add to your favorites. Example: 'Diamondbacks' or 'Cowboys'."
+            },
+            {
+                "type": "input",
+                "messageKey": "FAVORITE_TEAM_SEARCH",
+                "label": "Search & Add Team",
+                "defaultValue": ""
+            },
+            {
+                "type": "submit",
+                "primary": true,
+                "defaultValue": "Search",
+                "id": "searchButton"
+            },
+            {
+                "type": "text",
+                "defaultValue": "Note: Pressing Search will save and close this page, adding the team in the background."
+            }
+        ]
+    },
+    {
+        "type": "section",
+        "items": [
+            {
+                "type": "heading",
                 "defaultValue": "Manage Favorites"
             },
             {

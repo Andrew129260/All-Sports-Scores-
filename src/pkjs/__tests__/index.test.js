@@ -199,6 +199,9 @@ describe('index.js', () => {
         expect(require('../storage').saveFavoritesNames).toHaveBeenCalledWith({
             "0:123": "Team 123 (Sport 0)"
         });
+        // expect(global.localStorage.setItem).toHaveBeenCalledWith('favoritesNames', JSON.stringify({
+        //    "0:123": "Team 123 (Sport 0)"
+        // }));
     });
 
     it('should handle appmessage remove favorite (added=false) with invalid JSON', () => {
@@ -232,5 +235,6 @@ describe('index.js', () => {
         expect(() => pebbleListeners['appmessage']({ payload: mockPayload })).not.toThrow();
 
         expect(require('../storage').saveFavoritesNames).toHaveBeenCalledWith({});
+        // expect(global.localStorage.setItem).toHaveBeenCalledWith('favoritesNames', JSON.stringify({}));
     });
 });
