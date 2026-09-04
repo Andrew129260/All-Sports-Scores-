@@ -2,6 +2,7 @@ var models = require('./models');
 var storage = require('./storage');
 var comms = require('./comms');
 var api = require('./api');
+var messageKeys = require('message_keys');
 
 var Clay = require('@rebble/clay');
 var clayConfig = require('./config.json');
@@ -61,6 +62,7 @@ Pebble.addEventListener('webviewclosed', function(e) {
   var rawSettings = JSON.parse(decodeURIComponent(e.response));
 
   var keptFavs = rawSettings['CURRENT_FAVORITES'] || (messageKeys.CURRENT_FAVORITES !== undefined ? rawSettings[messageKeys.CURRENT_FAVORITES] : []) || [];
+  var keptFavs = rawSettings['CURRENT_FAVORITES'] ? rawSettings['CURRENT_FAVORITES'] : [];
   var searchQuery = rawSettings['FAVORITE_TEAM_SEARCH'] || (messageKeys.FAVORITE_TEAM_SEARCH !== undefined ? rawSettings[messageKeys.FAVORITE_TEAM_SEARCH] : '') || '';
 
 
@@ -129,6 +131,7 @@ Pebble.addEventListener('webviewclosed', function(e) {
               var bestMatch = null;
               if (data.results && data.results.length > 0) {
                   // Prioritize finding a team in results
+                  // Find first team
                   for (var r = 0; r < data.results.length; r++) {
                       if (data.results[r].type === 'team' && data.results[r].contents && data.results[r].contents.length > 0) {
                           bestMatch = data.results[r].contents[0];
@@ -137,6 +140,7 @@ Pebble.addEventListener('webviewclosed', function(e) {
                   }
 
                   // If no team found, fallback to finding a player
+                  // If no team found, try to find a player
                   if (!bestMatch) {
                       for (var r = 0; r < data.results.length; r++) {
                           if (data.results[r].type === 'player' && data.results[r].contents && data.results[r].contents.length > 0) {
