@@ -59,6 +59,12 @@ function sendGameList(requestID, games) {
                 console.log("Aplite Detected: Capping payload at " + MAX_GAMES + " games.");
                 games = games.slice(0, MAX_GAMES);
             }
+        } else {
+            const MAX_GAMES = 200;
+            if (games.length > MAX_GAMES) {
+                console.log("Capping payload at " + MAX_GAMES + " games to prevent memory overflow.");
+                games = games.slice(0, MAX_GAMES);
+            }
         }
 
         const initDict = {
