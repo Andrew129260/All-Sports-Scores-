@@ -48,10 +48,17 @@ int16_t get_anim_progress(void *subject) {
 }
 
 void animation_repeat_handler (Animation *animation, bool finished, void *context) {
+    ProgressLayer *progress_layer = (ProgressLayer*) context;
+    ProgressLayerData *data = (ProgressLayerData *)layer_get_data(progress_layer);
+
     if (!finished) {
+        // Animation was unscheduled/destroyed. Clean up the stale pointer so we don't try to reuse it
+        if (data != NULL) {
+            data->animation = NULL;
+        }
         return;
     }
-    ProgressLayer *progress_layer = (ProgressLayer*) context;
+
     bool hidden = layer_get_hidden(progress_layer);
     
     if (!hidden) {
@@ -63,7 +70,7 @@ void init_animation(ProgressLayer *progress_layer, ProgressLayerData *data) {
     static int16_t to_int = 100;
 
     if (data->prop_anim) {
-        if (data->animation) {
+        if (data->animation && animation_is_scheduled(data->animation)) {
             animation_unschedule(data->animation);
         }
         property_animation_destroy(data->prop_anim);
@@ -115,7 +122,7 @@ void progress_layer_destroy(ProgressLayer* progress_layer) {
     if (progress_layer) {
         ProgressLayerData *layer_data = (ProgressLayerData*) layer_get_data(progress_layer);
         
-        if (layer_data->animation) {
+        if (layer_data->animation && animation_is_scheduled(layer_data->animation)) {
             animation_unschedule(layer_data->animation);
         }
 
@@ -160,7 +167,7 @@ void progress_layer_set_hidden(ProgressLayer* progress_layer, bool hidden) {
     ProgressLayerData *data = (ProgressLayerData *)layer_get_data(progress_layer);
     layer_set_hidden(progress_layer, hidden);
     
-    if(!hidden && !animation_is_scheduled(data->animation)) {
+    if(!hidden && (data->animation == NULL || !animation_is_scheduled(data->animation))) {
         init_animation(progress_layer, data);
     }
 }

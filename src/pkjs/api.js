@@ -280,7 +280,7 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
     if ((sport == models.sports.CRICKET || sport == models.sports.RUGBY) && (leagueIndex === undefined || leagueIndex === null || leagueIndex === 0)) {
         let sportString = (sport == models.sports.CRICKET) ? "cricket" : "rugby";
         let headerReq = new XMLHttpRequest();
-        headerReq.open('GET', 'https://site.web.api.espn.com/apis/personalized/v2/scoreboard/header?sport=' + sportString + '&t=' + Date.now());
+        headerReq.open('GET', 'https://site.web.api.espn.com/apis/personalized/v2/scoreboard/header?sport=' + encodeURIComponent(sportString) + '&t=' + Date.now());
         headerReq.onload = function () {
             if (headerReq.readyState == 4) {
                 if (headerReq.status == 200) {
@@ -291,7 +291,7 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
                             if (activeLeagues) {
                                 activeLeagues.forEach(league => {
                                     if (league.id) {
-                                        let dynamicUrl = "https://site.api.espn.com/apis/site/v2/sports/" + sportString + "/" + league.id;
+                                        let dynamicUrl = "https://site.api.espn.com/apis/site/v2/sports/" + encodeURIComponent(sportString) + "/" + encodeURIComponent(league.id);
                                         if (!fetchTasks.some(t => t.url === dynamicUrl)) {
                                             console.log("[DYNAMIC DISCOVERY] Added Active " + sportString.toUpperCase() + " Tour ID: " + league.id + " (" + (league.name || "Tour") + ")");
                                             fetchTasks.push({ url: dynamicUrl, league: league.abbreviation || "International", params: "" });
@@ -517,10 +517,10 @@ function insertUserPin(pin) {
         // Fallback: If we can get a timeline token, send it normally.
         // If getting the token fails (e.g. offline), STILL send the request
         // with a dummy token. The Pebble app on the phone intercepts
-        // requests to timeline-api.rebble.io and creates local pins!
+        // requests to timeline-api.getpebble.com and creates local pins!
         var sendRequest = function(token) {
             var req = new XMLHttpRequest();
-            req.open('PUT', 'https://timeline-api.rebble.io/v1/user/pins/' + pin.id, true);
+            req.open('PUT', 'https://timeline-api.getpebble.com/v1/user/pins/' + encodeURIComponent(pin.id), true);
             req.setRequestHeader('Content-Type', 'application/json');
             req.setRequestHeader('X-User-Token', '' + token);
 
