@@ -23,6 +23,7 @@ static void error_layer_update_proc(Layer *layer, GContext *ctx) {
     graphics_draw_text(ctx, data->title, fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD), title_bounds, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
 
     GRect summary_bounds = GRect(0, 25 + 18, layer_bounds.size.w, 50);
+    GRect summary_bounds = GRect(0, 25 + 18, layer_bounds.size.w, 36);
     graphics_draw_text(ctx, data->summary, fonts_get_system_font(FONT_KEY_GOTHIC_14), summary_bounds, GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
 }
 
