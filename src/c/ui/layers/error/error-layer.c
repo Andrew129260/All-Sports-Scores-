@@ -18,7 +18,7 @@ static void error_layer_update_proc(Layer *layer, GContext *ctx) {
         graphics_draw_bitmap_in_rect(ctx, data->icon, icon_bounds); 
     }
 
-    graphics_context_set_text_color(ctx, GColorBlack);
+    graphics_context_set_text_color(ctx, PBL_IF_COLOR_ELSE(GColorBlack, GColorWhite));
     GRect title_bounds = GRect(0, 25, layer_bounds.size.w, 24);
     graphics_draw_text(ctx, data->title, fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD), title_bounds, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
 
