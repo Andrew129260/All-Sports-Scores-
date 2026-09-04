@@ -88,7 +88,7 @@ static void on_games_error(AppError error) {
     if (!s_error_layer) {
         Layer *window_layer = window_get_root_layer(gamesWindow);
         GRect bounds = layer_get_frame(window_layer);
-        GRect error_layer_bounds = GRect(bounds.origin.x + PBL_IF_ROUND_ELSE(32, 16), bounds.origin.y + bounds.size.h / 2 - PBL_IF_ROUND_ELSE(24, 36), bounds.size.w - PBL_IF_ROUND_ELSE(64, 32), 61);
+        GRect error_layer_bounds = GRect(bounds.origin.x + PBL_IF_ROUND_ELSE(32, 16), bounds.origin.y + bounds.size.h / 2 - PBL_IF_ROUND_ELSE(36, 48), bounds.size.w - PBL_IF_ROUND_ELSE(64, 32), 100);
         s_error_layer = error_layer_create(error_layer_bounds);
         layer_add_child(window_layer, (Layer*)s_error_layer);
     }
