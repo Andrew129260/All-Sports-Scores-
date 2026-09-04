@@ -167,7 +167,7 @@ void progress_layer_set_hidden(ProgressLayer* progress_layer, bool hidden) {
     ProgressLayerData *data = (ProgressLayerData *)layer_get_data(progress_layer);
     layer_set_hidden(progress_layer, hidden);
     
-    if(!hidden && (data->animation == NULL || !animation_is_scheduled(data->animation))) {
+    if(!hidden && data->animation == NULL) {
         init_animation(progress_layer, data);
     }
 }
