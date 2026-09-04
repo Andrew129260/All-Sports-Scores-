@@ -70,7 +70,7 @@ void init_animation(ProgressLayer *progress_layer, ProgressLayerData *data) {
     static int16_t to_int = 100;
 
     if (data->prop_anim) {
-        if (data->animation) {
+        if (data->animation && animation_is_scheduled(data->animation)) {
             animation_unschedule(data->animation);
         }
         property_animation_destroy(data->prop_anim);
@@ -122,7 +122,7 @@ void progress_layer_destroy(ProgressLayer* progress_layer) {
     if (progress_layer) {
         ProgressLayerData *layer_data = (ProgressLayerData*) layer_get_data(progress_layer);
         
-        if (layer_data->animation) {
+        if (layer_data->animation && animation_is_scheduled(layer_data->animation)) {
             animation_unschedule(layer_data->animation);
         }
 
