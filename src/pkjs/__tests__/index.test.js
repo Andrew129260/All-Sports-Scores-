@@ -22,7 +22,9 @@ describe('index.js', () => {
         }));
         jest.mock('../storage', () => ({
             storedFavorites: jest.fn(() => []),
-            updateFavorite: jest.fn(() => true)
+            updateFavorite: jest.fn(() => true),
+            getFavoritesNames: jest.fn(() => ({})),
+            saveFavoritesNames: jest.fn()
         }));
         jest.mock('../comms', () => ({
             sendGameList: jest.fn(),
@@ -75,8 +77,7 @@ describe('index.js', () => {
 
         // It should not throw an error and should set clay-settings in localStorage to a valid JSON string
         expect(global.localStorage.setItem).toHaveBeenCalledWith('clay-settings', JSON.stringify({
-            CURRENT_FAVORITES: [],
-            FAVORITE_TEAM_SEARCH: ""
+            CURRENT_FAVORITES: []
         }));
     });
 
@@ -105,8 +106,7 @@ describe('index.js', () => {
         // It should merge settings correctly
         expect(global.localStorage.setItem).toHaveBeenCalledWith('clay-settings', JSON.stringify({
             PREVIOUS_SETTING: 'value',
-            CURRENT_FAVORITES: [],
-            FAVORITE_TEAM_SEARCH: ""
+            CURRENT_FAVORITES: []
         }));
     });
 
@@ -128,8 +128,7 @@ describe('index.js', () => {
         });
 
         const mockResponse = JSON.stringify({
-            CURRENT_FAVORITES: ['0:123'],
-            FAVORITE_TEAM_SEARCH: 'Eagles'
+            CURRENT_FAVORITES: ['0:123']
         });
 
         global.XMLHttpRequest = jest.fn(() => ({
@@ -161,8 +160,7 @@ describe('index.js', () => {
         });
 
         const mockResponse = JSON.stringify({
-            CURRENT_FAVORITES: ['0:123'],
-            FAVORITE_TEAM_SEARCH: ''
+            CURRENT_FAVORITES: ['0:123']
         });
 
         global.XMLHttpRequest = jest.fn(() => ({
@@ -198,9 +196,9 @@ describe('index.js', () => {
         // Trigger appmessage
         expect(() => pebbleListeners['appmessage']({ payload: mockPayload })).not.toThrow();
 
-        expect(global.localStorage.setItem).toHaveBeenCalledWith('favoritesNames', JSON.stringify({
+        expect(require('../storage').saveFavoritesNames).toHaveBeenCalledWith({
             "0:123": "Team 123 (Sport 0)"
-        }));
+        });
     });
 
     it('should handle appmessage remove favorite (added=false) with invalid JSON', () => {
@@ -211,7 +209,9 @@ describe('index.js', () => {
         // Override updateFavorite to return false (removed)
         jest.mock('../storage', () => ({
             storedFavorites: jest.fn(() => []),
-            updateFavorite: jest.fn(() => false)
+            updateFavorite: jest.fn(() => false),
+            getFavoritesNames: jest.fn(() => ({})),
+            saveFavoritesNames: jest.fn()
         }));
 
         require('../index.js');
@@ -231,6 +231,6 @@ describe('index.js', () => {
         // Trigger appmessage
         expect(() => pebbleListeners['appmessage']({ payload: mockPayload })).not.toThrow();
 
-        expect(global.localStorage.setItem).toHaveBeenCalledWith('favoritesNames', JSON.stringify({}));
+        expect(require('../storage').saveFavoritesNames).toHaveBeenCalledWith({});
     });
 });

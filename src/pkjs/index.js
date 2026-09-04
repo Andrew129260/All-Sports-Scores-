@@ -40,8 +40,6 @@ Pebble.addEventListener('showConfiguration', function(e) {
   var settings = {};
   try { settings = JSON.parse(localStorage.getItem('clay-settings')) || {}; } catch (e) {}
   settings['CURRENT_FAVORITES'] = selectedFavs;
-  // Make sure to clear previous search
-  settings['FAVORITE_TEAM_SEARCH'] = "";
   localStorage.setItem('clay-settings', JSON.stringify(settings));
 
   Pebble.openURL(clay.generateUrl());
@@ -59,8 +57,6 @@ Pebble.addEventListener('webviewclosed', function(e) {
   var currentFavs = storage.storedFavorites();
   var rawSettings = JSON.parse(decodeURIComponent(e.response));
   var keptFavs = rawSettings['CURRENT_FAVORITES'] ? rawSettings['CURRENT_FAVORITES'] : [];
-  var searchQuery = rawSettings['FAVORITE_TEAM_SEARCH'] ? rawSettings['FAVORITE_TEAM_SEARCH'] : '';
-
 
   if (!Array.isArray(keptFavs)) {
       keptFavs = [keptFavs];
@@ -80,21 +76,15 @@ Pebble.addEventListener('webviewclosed', function(e) {
       }
   }
 
-
-  delete dict['FAVORITE_TEAM_SEARCH'];
   delete dict['CURRENT_FAVORITES'];
 
   // Workaround for Clay appending keys even if we delete them from dict.
   // Clay stores its settings in localStorage 'clay-settings' using the message keys.
   // When we hit save, the raw response string often includes the dynamic keys and sends it directly via sendAppMessage if we aren't careful,
   // or it errors out if the keys aren't in messageKeys array.
-  // We added FAVORITE_TEAM_SEARCH and CURRENT_FAVORITES to package.json to stop the NaN / Unknown message key error on watch.
 
   var messageKeys = require('message_keys');
-  if (messageKeys.FAVORITE_TEAM_SEARCH !== undefined) delete dict[messageKeys.FAVORITE_TEAM_SEARCH];
   if (messageKeys.CURRENT_FAVORITES !== undefined) delete dict[messageKeys.CURRENT_FAVORITES];
-
-
 
   // Push standard settings to Pebble watch (leagues and display options)
   Pebble.sendAppMessage(dict, function() {
@@ -103,104 +93,15 @@ Pebble.addEventListener('webviewclosed', function(e) {
       console.log('Failed to send config data: ' + JSON.stringify(err));
   });
 
-  // Function to finalize favorites and trigger push
-  function finalizeFavorites(favorites, newNameMap) {
-      storage.saveFavoritesNames(newNameMap);
-      localStorage.setItem('favorites', JSON.stringify(favorites));
-      storage.storedFavorites(true);
+  // Finalize favorites and trigger push
+  storage.saveFavoritesNames(nameMap);
+  localStorage.setItem('favorites', JSON.stringify(newFavorites));
+  storage.storedFavorites(true);
 
-      api.getGames(models.sports.FAVORITES, null,
-          function() { console.log("Timeline background push triggered by settings update."); },
-          function() { console.log("Timeline background push failed."); }
-      );
-  }
-
-  // 2. Process search query if any
-  if (searchQuery && searchQuery.trim().length > 0) {
-      var query = searchQuery.trim();
-      var url = "https://site.web.api.espn.com/apis/search/v2?region=us&lang=en&query=" + encodeURIComponent(query) + "&limit=5";
-      var req = new XMLHttpRequest();
-      req.open('GET', url, true);
-      req.onload = function() {
-          if (req.status == 200) {
-              var data = JSON.parse(req.responseText);
-
-              var bestMatch = null;
-              if (data.results && data.results.length > 0) {
-                  // Find first team or player in results
-                  for (var r = 0; r < data.results.length; r++) {
-                      if ((data.results[r].type === 'team' || data.results[r].type === 'player') && data.results[r].contents && data.results[r].contents.length > 0) {
-                          bestMatch = data.results[r].contents[0];
-                          break;
-                      }
-                  }
-              }
-              if (bestMatch) {
-
-
-
-
-                  // Map sport name to ID
-                  var sportId = -1;
-                  var sportStr = bestMatch.sport;
-                  if (sportStr === "football" && (bestMatch.defaultLeagueSlug === "nfl" || bestMatch.defaultLeagueSlug === "college-football")) sportId = models.sports.NFL;
-                  else if (sportStr === "baseball" && bestMatch.defaultLeagueSlug === "mlb") sportId = models.sports.MLB;
-                  else if (sportStr === "hockey" && bestMatch.defaultLeagueSlug === "nhl") sportId = models.sports.NHL;
-                  else if (sportStr === "basketball" && (bestMatch.defaultLeagueSlug === "nba" || bestMatch.defaultLeagueSlug === "mens-college-basketball" || bestMatch.defaultLeagueSlug === "womens-college-basketball")) sportId = models.sports.NBA;
-                  else if (sportStr === "soccer") sportId = models.sports.MLS; // Note: We map all soccer to MLS for this app currently
-                  else if (sportStr === "australian-football") sportId = models.sports.AFL;
-                  else if (sportStr === "cricket") sportId = models.sports.CRICKET;
-                  else if (sportStr === "rugby-league" || sportStr === "rugby-union") sportId = models.sports.RUGBY;
-                  else if (sportStr === "tennis") sportId = models.sports.TENNIS;
-                  else if (sportStr === "mma") sportId = models.sports.MMA;
-
-                  if (sportId !== -1) {
-                      var teamIdStr = "";
-                      if (bestMatch.type === "player") {
-                          // e.g. "s:850~l:851~a:296" -> 296
-                          var parts = bestMatch.uid.split('~a:');
-                          if (parts.length > 1) {
-                              teamIdStr = parts[1];
-                          }
-                      } else {
-                          // team e.g. "s:20~l:28~t:22" -> 22
-                          var parts = bestMatch.uid.split('~t:');
-                          if (parts.length > 1) {
-                              teamIdStr = parts[1];
-                          }
-                      }
-
-                      if (teamIdStr) {
-
-                          var newTeam = new models.FavoriteTeam(sportId, teamIdStr);
-                          var key = sportId + ":" + teamIdStr;
-
-                          // Check if already in favorites
-                          var exists = newFavorites.some(function(f) { return f.sport == sportId && f.teamID == teamIdStr; });
-                          if (!exists) {
-                              newFavorites.push(newTeam);
-                              nameMap[key] = bestMatch.displayName;
-                              console.log("Added new favorite from search: " + bestMatch.displayName);
-                          } else {
-                              console.log("Team already in favorites.");
-                          }
-                      }
-                  } else {
-                      console.log("Found team, but sport not supported.");
-                  }
-              } else {
-                  console.log("No team found for query.");
-              }
-          }
-          finalizeFavorites(newFavorites, nameMap);
-      };
-      req.onerror = function() {
-          finalizeFavorites(newFavorites, nameMap);
-      };
-      req.send();
-  } else {
-      finalizeFavorites(newFavorites, nameMap);
-  }
+  api.getGames(models.sports.FAVORITES, null,
+      function() { console.log("Timeline background push triggered by settings update."); },
+      function() { console.log("Timeline background push failed."); }
+  );
 });
 
 
