@@ -88,7 +88,7 @@ static void on_games_error(AppError error) {
     if (!s_error_layer) {
         Layer *window_layer = window_get_root_layer(gamesWindow);
         GRect bounds = layer_get_frame(window_layer);
-        GRect error_layer_bounds = GRect(bounds.origin.x + PBL_IF_ROUND_ELSE(32, 16), bounds.origin.y + bounds.size.h / 2 - PBL_IF_ROUND_ELSE(24, 36), bounds.size.w - PBL_IF_ROUND_ELSE(64, 32), 61);
+        GRect error_layer_bounds = GRect(bounds.origin.x + PBL_IF_ROUND_ELSE(32, 16), bounds.origin.y + bounds.size.h / 2 - PBL_IF_ROUND_ELSE(36, 48), bounds.size.w - PBL_IF_ROUND_ELSE(64, 32), 100);
         s_error_layer = error_layer_create(error_layer_bounds);
         layer_add_child(window_layer, (Layer*)s_error_layer);
     }
@@ -223,10 +223,7 @@ static void menu_cell_game_small_draw(GContext* ctx, const Layer *cell_layer, co
 static void menu_draw_row_callback(GContext* ctx, const Layer *cell_layer, MenuIndex *cell_index, void *data) {
     if (s_menu_layer == NULL) return;
     if (game_count == 0 || games == NULL) {
-        if (refreshing) return; 
-        bool selected = menu_layer_get_selected_index(s_menu_layer).row == cell_index->row;
-        graphics_context_set_text_color(ctx, selected ? GColorWhite : GColorBlack);
-        graphics_draw_text(ctx, "No games right now.\n\nIt may be the off-season.", fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD), layer_get_bounds(cell_layer), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
+        // Do not draw text here since s_error_layer handles displaying the error
         return;
     }
     if (cell_index->row >= game_count || games == NULL) return;
