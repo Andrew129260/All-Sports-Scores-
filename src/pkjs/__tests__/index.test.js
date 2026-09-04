@@ -200,6 +200,9 @@ describe('index.js', () => {
         // Trigger appmessage
         expect(() => pebbleListeners['appmessage']({ payload: mockPayload })).not.toThrow();
 
+        expect(require('../storage').saveFavoritesNames).toHaveBeenCalledWith({
+            "0:123": "Team 123 (Sport 0)"
+        });
         // expect(global.localStorage.setItem).toHaveBeenCalledWith('favoritesNames', JSON.stringify({
         //    "0:123": "Team 123 (Sport 0)"
         // }));
@@ -235,6 +238,7 @@ describe('index.js', () => {
         // Trigger appmessage
         expect(() => pebbleListeners['appmessage']({ payload: mockPayload })).not.toThrow();
 
+        expect(require('../storage').saveFavoritesNames).toHaveBeenCalledWith({});
         // expect(global.localStorage.setItem).toHaveBeenCalledWith('favoritesNames', JSON.stringify({}));
     });
 });

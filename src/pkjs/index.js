@@ -7,6 +7,7 @@ var messageKeys = require('message_keys');
 var Clay = require('@rebble/clay');
 var clayConfig = require('./config.json');
 var clay = new Clay(clayConfig, null, { autoHandleEvents: false });
+var messageKeys = require('message_keys');
 
 Pebble.addEventListener('showConfiguration', function(e) {
   // Update the options for the favorites checkboxes dynamically based on storage
@@ -59,6 +60,8 @@ Pebble.addEventListener('webviewclosed', function(e) {
   // 1. Process CURRENT_FAVORITES to see what was unchecked and remove them
   var currentFavs = storage.storedFavorites();
   var rawSettings = JSON.parse(decodeURIComponent(e.response));
+
+  var keptFavs = rawSettings['CURRENT_FAVORITES'] || (messageKeys.CURRENT_FAVORITES !== undefined ? rawSettings[messageKeys.CURRENT_FAVORITES] : []) || [];
   var keptFavs = rawSettings['CURRENT_FAVORITES'] ? rawSettings['CURRENT_FAVORITES'] : [];
   var searchQuery = rawSettings['FAVORITE_TEAM_SEARCH'] || (messageKeys.FAVORITE_TEAM_SEARCH !== undefined ? rawSettings[messageKeys.FAVORITE_TEAM_SEARCH] : '') || '';
 
@@ -127,6 +130,7 @@ Pebble.addEventListener('webviewclosed', function(e) {
 
               var bestMatch = null;
               if (data.results && data.results.length > 0) {
+                  // Prioritize finding a team in results
                   // Find first team
                   for (var r = 0; r < data.results.length; r++) {
                       if (data.results[r].type === 'team' && data.results[r].contents && data.results[r].contents.length > 0) {
@@ -134,6 +138,8 @@ Pebble.addEventListener('webviewclosed', function(e) {
                           break;
                       }
                   }
+
+                  // If no team found, fallback to finding a player
                   // If no team found, try to find a player
                   if (!bestMatch) {
                       for (var r = 0; r < data.results.length; r++) {
