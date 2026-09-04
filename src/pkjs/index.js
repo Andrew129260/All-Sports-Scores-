@@ -6,6 +6,7 @@ var api = require('./api');
 var Clay = require('@rebble/clay');
 var clayConfig = require('./config.json');
 var clay = new Clay(clayConfig, null, { autoHandleEvents: false });
+var messageKeys = require('message_keys');
 
 Pebble.addEventListener('showConfiguration', function(e) {
   // Update the options for the favorites checkboxes dynamically based on storage
@@ -58,8 +59,9 @@ Pebble.addEventListener('webviewclosed', function(e) {
   // 1. Process CURRENT_FAVORITES to see what was unchecked and remove them
   var currentFavs = storage.storedFavorites();
   var rawSettings = JSON.parse(decodeURIComponent(e.response));
-  var keptFavs = rawSettings['CURRENT_FAVORITES'] ? rawSettings['CURRENT_FAVORITES'] : [];
-  var searchQuery = rawSettings['FAVORITE_TEAM_SEARCH'] ? rawSettings['FAVORITE_TEAM_SEARCH'] : '';
+
+  var keptFavs = rawSettings['CURRENT_FAVORITES'] || (messageKeys.CURRENT_FAVORITES !== undefined ? rawSettings[messageKeys.CURRENT_FAVORITES] : []) || [];
+  var searchQuery = rawSettings['FAVORITE_TEAM_SEARCH'] || (messageKeys.FAVORITE_TEAM_SEARCH !== undefined ? rawSettings[messageKeys.FAVORITE_TEAM_SEARCH] : '') || '';
 
 
   if (!Array.isArray(keptFavs)) {
@@ -90,7 +92,6 @@ Pebble.addEventListener('webviewclosed', function(e) {
   // or it errors out if the keys aren't in messageKeys array.
   // We added FAVORITE_TEAM_SEARCH and CURRENT_FAVORITES to package.json to stop the NaN / Unknown message key error on watch.
 
-  var messageKeys = require('message_keys');
   if (messageKeys.FAVORITE_TEAM_SEARCH !== undefined) delete dict[messageKeys.FAVORITE_TEAM_SEARCH];
   if (messageKeys.CURRENT_FAVORITES !== undefined) delete dict[messageKeys.CURRENT_FAVORITES];
 
@@ -116,7 +117,7 @@ Pebble.addEventListener('webviewclosed', function(e) {
   }
 
   // 2. Process search query if any
-  if (searchQuery && searchQuery.trim().length > 0) {
+  if (searchQuery && typeof searchQuery === 'string' && searchQuery.trim().length > 0) {
       var query = searchQuery.trim();
       var url = "https://site.web.api.espn.com/apis/search/v2?region=us&lang=en&query=" + encodeURIComponent(query) + "&limit=5";
       var req = new XMLHttpRequest();
@@ -127,11 +128,21 @@ Pebble.addEventListener('webviewclosed', function(e) {
 
               var bestMatch = null;
               if (data.results && data.results.length > 0) {
-                  // Find first team or player in results
+                  // Prioritize finding a team in results
                   for (var r = 0; r < data.results.length; r++) {
-                      if ((data.results[r].type === 'team' || data.results[r].type === 'player') && data.results[r].contents && data.results[r].contents.length > 0) {
+                      if (data.results[r].type === 'team' && data.results[r].contents && data.results[r].contents.length > 0) {
                           bestMatch = data.results[r].contents[0];
                           break;
+                      }
+                  }
+
+                  // If no team found, fallback to finding a player
+                  if (!bestMatch) {
+                      for (var r = 0; r < data.results.length; r++) {
+                          if (data.results[r].type === 'player' && data.results[r].contents && data.results[r].contents.length > 0) {
+                              bestMatch = data.results[r].contents[0];
+                              break;
+                          }
                       }
                   }
               }
