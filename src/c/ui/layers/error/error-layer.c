@@ -18,12 +18,12 @@ static void error_layer_update_proc(Layer *layer, GContext *ctx) {
         graphics_draw_bitmap_in_rect(ctx, data->icon, icon_bounds); 
     }
 
-    graphics_context_set_text_color(ctx, GColorBlack);
+    graphics_context_set_text_color(ctx, PBL_IF_COLOR_ELSE(GColorBlack, GColorWhite));
     GRect title_bounds = GRect(0, 25, layer_bounds.size.w, 24);
     graphics_draw_text(ctx, data->title, fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD), title_bounds, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
 
-    GRect summary_bounds = GRect(0, 25 + 18, layer_bounds.size.w, 18);
-    graphics_draw_text(ctx, data->summary, fonts_get_system_font(FONT_KEY_GOTHIC_14), summary_bounds, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
+    GRect summary_bounds = GRect(0, 25 + 18, layer_bounds.size.w, 32);
+    graphics_draw_text(ctx, data->summary, fonts_get_system_font(FONT_KEY_GOTHIC_14), summary_bounds, GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
 }
 
 ErrorLayer* error_layer_create(GRect bounds) {
@@ -51,8 +51,8 @@ void error_layer_set_error(ErrorLayer *error_layer, AppError error, Sport sport)
     {
         case NoGames:
             data->icon = gbitmap_create_with_resource(sport_get_icon_res_large(sport));
-            data->title = "No Games";
-            data->summary = "Press select to refresh";
+            data->title = "No Games Found";
+            data->summary = "Likely off-season or no active";
             break;
         case NetworkError:
             data->icon = gbitmap_create_with_resource(RESOURCE_ID_ERROR_25);
