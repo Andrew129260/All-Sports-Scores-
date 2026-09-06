@@ -154,7 +154,17 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
     }
 
     function executeFetchTasks() {
-        fetchTasks.forEach(task => {
+        // Limit maximum concurrent tasks to prevent Pebble connection pool exhaustion (usually max 10)
+        let activeRequests = 0;
+        let taskIndex = 0;
+        const MAX_CONCURRENT = 4;
+
+        function runNext() {
+            if (taskIndex >= fetchTasks.length) return;
+
+            let task = fetchTasks[taskIndex++];
+            activeRequests++;
+
             let req = new XMLHttpRequest();
             const fullUrl = task.url + "/scoreboard?t=" + Date.now() + task.params;
             
@@ -174,7 +184,6 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
                                             if (grouping.competitions) {
                                                 grouping.competitions.forEach(comp => {
                                                     // Skip cancelled/retired/walkover matches, and TBD vs TBD matches
-                                                    // which bloat the tennis timeline and cause scrolling issues
                                                     let status = comp.status && comp.status.type ? comp.status.type.name : "";
                                                     let shortDetail = comp.status && comp.status.type ? (comp.status.type.shortDetail || "") : "";
                                                     let p1 = comp.competitors && comp.competitors.length > 1 ? (comp.competitors[1].athlete || comp.competitors[1].team) : null;
@@ -214,16 +223,25 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
                     }
                     
                     completedRequests++;
+                    activeRequests--;
                     checkCompletion();
+                    runNext();
                 }
             };
             req.onerror = function () {
                 hasCriticalError = true;
                 completedRequests++;
+                activeRequests--;
                 checkCompletion();
+                runNext();
             };
             req.send();
-        });
+        }
+
+        // Start initial batch of requests
+        for (let i = 0; i < MAX_CONCURRENT && i < fetchTasks.length; i++) {
+            runNext();
+        }
     }
 
     function checkCompletion() {
