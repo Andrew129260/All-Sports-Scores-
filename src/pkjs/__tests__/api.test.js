@@ -70,7 +70,9 @@ describe('API Parsing logic', () => {
         });
 
         // Trigger xhr onload
-        xhrMock.onload();
+                const oldOnload = xhrMock.onload;
+        if (typeof oldOnload === 'function') oldOnload();
+        if (typeof xhrMock.onload === 'function' && xhrMock.onload !== oldOnload) xhrMock.onload();
     });
 
     test('should filter out games scheduled more than 14 days in advance', (done) => {
@@ -121,7 +123,11 @@ describe('API Parsing logic', () => {
             done.fail('Should not call error callback');
         });
 
-        xhrMock.onload();
+
+        const oldOnload = xhrMock.onload;
+        if (typeof oldOnload === 'function') oldOnload();
+        if (typeof xhrMock.onload === 'function' && xhrMock.onload !== oldOnload) xhrMock.onload();
+
     });
 
     test('should parse nested groupings for Tennis correctly and skip bad matches', (done) => {
@@ -225,6 +231,10 @@ describe('API Parsing logic', () => {
         });
 
         // Trigger xhr onload
-        xhrMock.onload();
+
+        const oldOnload = xhrMock.onload;
+        if (typeof oldOnload === 'function') oldOnload();
+        if (typeof xhrMock.onload === 'function' && xhrMock.onload !== oldOnload) xhrMock.onload();
+
     });
 });
