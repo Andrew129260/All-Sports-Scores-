@@ -352,25 +352,31 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
                             console.log("Dynamic Header Parse Error");
                         }
                     }
-                    executeFetchTasks();
-                }
 
-                // If there are no fetchTasks after Dynamic Discovery, error out instead of hanging.
+                    // If there are no fetchTasks after Dynamic Discovery, error out instead of hanging.
+                    if (fetchTasks.length === 0) {
+                        onError();
+                    } else {
+                        executeFetchTasks();
+                    }
+                }
+            };
+            headerReq.onerror = function () {
                 if (fetchTasks.length === 0) {
                     onError();
                 } else {
                     executeFetchTasks();
                 }
-            }
-        };
-        headerReq.onerror = function () {
+            };
+            headerReq.send();
+        } else {
+            // Fallback if no specific dynamic header string exists
             if (fetchTasks.length === 0) {
                 onError();
             } else {
                 executeFetchTasks();
             }
-        };
-        headerReq.send();
+        }
     } else {
         // Safe check for the case where endpoints.length was 0 earlier, but handled before. Just in case.
         if (fetchTasks.length === 0) {
