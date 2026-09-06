@@ -277,28 +277,6 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
     }
 
     // Dynamic Discovery: Pre-Flight Check for BOTH Cricket and Rugby
-    // Append date window to ensure 14 days of upcoming games are fetched (fixes missing future games)
-    if (sport !== models.sports.TENNIS && sport !== models.sports.NFL && sport !== models.sports.MMA) {
-        function getFormattedDate(d) {
-            let year = d.getFullYear();
-            let month = (d.getMonth() + 1).toString().padStart(2, '0');
-            let day = d.getDate().toString().padStart(2, '0');
-            return `${year}${month}${day}`;
-        }
-        const now = new Date();
-        const futureLimit = new Date(now.getTime() + (7 * 24 * 60 * 60 * 1000));
-        const pastLimit = new Date(now.getTime() - (1 * 24 * 60 * 60 * 1000));
-        const dateParams = `dates=${getFormattedDate(pastLimit)}-${getFormattedDate(futureLimit)}&limit=100`;
-
-        fetchTasks.forEach(task => {
-            if (task.params) {
-                task.params += "&" + dateParams;
-            } else {
-                task.params = "&" + dateParams;
-            }
-        });
-    }
-
     if ((sport == models.sports.CRICKET || sport == models.sports.RUGBY) && (leagueIndex === undefined || leagueIndex === null || leagueIndex === 0)) {
         let sportString = (sport == models.sports.CRICKET) ? "cricket" : "rugby";
         let headerReq = new XMLHttpRequest();
@@ -595,7 +573,7 @@ function updateTimelinePins(games) {
 
                 var pin = {
                     "id": pinId,
-                    "time": game.startTime,
+                    "time": localTimeISO,
                     "duration": 180,
                     "layout": {
                         "type": "genericPin",
