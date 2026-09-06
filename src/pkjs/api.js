@@ -86,8 +86,8 @@ function getEndpointsForSport(sport) {
             { url: base + '/basketball/nba', league: "NBA" }, 
             { url: base + '/basketball/wnba', league: "WNBA" }, 
             { url: base + '/basketball/mens-college-basketball', league: "NCAAM", params: "&groups=50" }, 
-            { url: base + '/basketball/fiba.mens.world.cup', league: "FIBA Men" },
-            { url: base + '/basketball/fiba.womens.world.cup', league: "FIBA Women" }
+            { url: base + '/basketball/fiba', league: "FIBA Men" },
+            { url: base + '/basketball/fiba', league: "FIBA Women" }
         ];
         case models.sports.MLS: return [
             { url: base + '/soccer/usa.1', league: "MLS" }, 
@@ -102,7 +102,7 @@ function getEndpointsForSport(sport) {
         case models.sports.RUGBY: return [
             { url: base + '/rugby-league/3', league: "NRL" }, 
             { url: base + '/rugby/180659', league: "Six Nations" },
-            { url: base + '/rugby/world-cup', league: "Rugby WC" }
+            { url: base + '/rugby/164205', league: "Rugby WC" }
         ];
         case models.sports.CRICKET: return [
             { url: [base + '/cricket/8039', base + '/cricket/8040'], league: "International" },
@@ -148,13 +148,20 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
         });
     });
 
-    if (fetchTasks.length === 0) {
-        onError();
-        return;
-    }
+    // We defer the fetchTasks length check because dynamic discovery adds tasks later.
 
     function executeFetchTasks() {
-        fetchTasks.forEach(task => {
+        // Limit maximum concurrent tasks to prevent Pebble connection pool exhaustion (usually max 10)
+        let activeRequests = 0;
+        let taskIndex = 0;
+        const MAX_CONCURRENT = 4;
+
+        function runNext() {
+            if (taskIndex >= fetchTasks.length) return;
+
+            let task = fetchTasks[taskIndex++];
+            activeRequests++;
+
             let req = new XMLHttpRequest();
             const fullUrl = task.url + "/scoreboard?t=" + Date.now() + task.params;
             
@@ -174,7 +181,6 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
                                             if (grouping.competitions) {
                                                 grouping.competitions.forEach(comp => {
                                                     // Skip cancelled/retired/walkover matches, and TBD vs TBD matches
-                                                    // which bloat the tennis timeline and cause scrolling issues
                                                     let status = comp.status && comp.status.type ? comp.status.type.name : "";
                                                     let shortDetail = comp.status && comp.status.type ? (comp.status.type.shortDetail || "") : "";
                                                     let p1 = comp.competitors && comp.competitors.length > 1 ? (comp.competitors[1].athlete || comp.competitors[1].team) : null;
@@ -214,16 +220,25 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
                     }
                     
                     completedRequests++;
+                    activeRequests--;
                     checkCompletion();
+                    runNext();
                 }
             };
             req.onerror = function () {
                 hasCriticalError = true;
                 completedRequests++;
+                activeRequests--;
                 checkCompletion();
+                runNext();
             };
             req.send();
-        });
+        }
+
+        // Start initial batch of requests
+        for (let i = 0; i < MAX_CONCURRENT && i < fetchTasks.length; i++) {
+            runNext();
+        }
     }
 
     function checkCompletion() {
@@ -258,8 +273,8 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
                 });
 
                 const now = new Date();
-                const futureLimit = new Date(now.getTime() + (14 * 24 * 60 * 60 * 1000));
-                const pastLimit = new Date(now.getTime() - (14 * 24 * 60 * 60 * 1000));
+                const futureLimit = new Date(now.getTime() + (7 * 24 * 60 * 60 * 1000));
+                const pastLimit = new Date(now.getTime() - (24 * 60 * 60 * 1000));
                 const filteredGames = uniqueGames.filter(game => {
                     if (game.startTime && !isNaN(game.startTime.getTime())) {
                         return game.startTime >= pastLimit && game.startTime <= futureLimit;
@@ -304,15 +319,30 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
                         console.log("Dynamic Header Parse Error");
                     }
                 }
-                executeFetchTasks();
+
+                // If there are no fetchTasks after Dynamic Discovery, error out instead of hanging.
+                if (fetchTasks.length === 0) {
+                    onError();
+                } else {
+                    executeFetchTasks();
+                }
             }
         };
         headerReq.onerror = function () {
-            executeFetchTasks();
+            if (fetchTasks.length === 0) {
+                onError();
+            } else {
+                executeFetchTasks();
+            }
         };
         headerReq.send();
     } else {
-        executeFetchTasks();
+        // Safe check for the case where endpoints.length was 0 earlier, but handled before. Just in case.
+        if (fetchTasks.length === 0) {
+            onError();
+        } else {
+            executeFetchTasks();
+        }
     }
 }
 
@@ -544,7 +574,7 @@ function insertUserPin(pin) {
 
 function updateTimelinePins(games) {
     const now = new Date();
-    const future48h = new Date(now.getTime() + (48 * 60 * 60 * 1000));
+    const future72h = new Date(now.getTime() + (72 * 60 * 60 * 1000));
 
     // CACHE FIX: Check localStorage to prevent spamming Rebble servers with duplicate pins
     // Now storing as an object mapping pinId to localTimeISO so if the time changes, we push it again.
@@ -561,7 +591,7 @@ function updateTimelinePins(games) {
 
     games.forEach(game => {
         if (game.startTime && !isNaN(game.startTime.getTime())) {
-            if (game.startTime > now && game.startTime < future48h) {
+            if (game.startTime > now && game.startTime < future72h) {
                 let pinId = "game-" + game.id;
                 let localTimeISO = game.startTime.toISOString();
                 

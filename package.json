@@ -102,67 +102,67 @@
                 {
                     "file": "images/Baseball-16.png",
                     "name": "BASEBALL_16",
-                    "type": "png"
+                    "type": "bitmap"
                 },
                 {
                     "file": "images/Baseball-25.png",
                     "name": "BASEBALL_25",
-                    "type": "png"
+                    "type": "bitmap"
                 },
                 {
                     "file": "images/Basketball-16.png",
                     "name": "BASKETBALL_16",
-                    "type": "png"
+                    "type": "bitmap"
                 },
                 {
                     "file": "images/Basketball-25.png",
                     "name": "BASKETBALL_25",
-                    "type": "png"
+                    "type": "bitmap"
                 },
                 {
                     "file": "images/Error-25.png",
                     "name": "ERROR_25",
-                    "type": "png"
+                    "type": "bitmap"
                 },
                 {
                     "file": "images/Football-16.png",
                     "name": "FOOTBALL_16",
-                    "type": "png"
+                    "type": "bitmap"
                 },
                 {
                     "file": "images/Football-25.png",
                     "name": "FOOTBALL_25",
-                    "type": "png"
+                    "type": "bitmap"
                 },
                 {
                     "file": "images/Hockey-16.png",
                     "name": "HOCKEY_16",
-                    "type": "png"
+                    "type": "bitmap"
                 },
                 {
                     "file": "images/Hockey-25.png",
                     "name": "HOCKEY_25",
-                    "type": "png"
+                    "type": "bitmap"
                 },
                 {
                     "file": "images/Soccer-16.png",
                     "name": "SOCCER_16",
-                    "type": "png"
+                    "type": "bitmap"
                 },
                 {
                     "file": "images/Soccer-25.png",
                     "name": "SOCCER_25",
-                    "type": "png"
+                    "type": "bitmap"
                 },
                 {
                     "file": "images/Star-16.png",
                     "name": "STAR_16",
-                    "type": "png"
+                    "type": "bitmap"
                 },
                 {
                     "file": "images/Star-25.png",
                     "name": "STAR_25",
-                    "type": "png"
+                    "type": "bitmap"
                 },
                 {
                     "file": "data/vector/confirm_sequence.pdc",
@@ -182,7 +182,7 @@
                 {
                     "file": "images/Generic-25.png",
                     "name": "GENERIC_25",
-                    "type": "png"
+                    "type": "bitmap"
                 },
                 {
                     "file": "images/tennis 16.png",
