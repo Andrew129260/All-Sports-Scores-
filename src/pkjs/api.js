@@ -86,8 +86,8 @@ function getEndpointsForSport(sport) {
             { url: base + '/basketball/nba', league: "NBA" }, 
             { url: base + '/basketball/wnba', league: "WNBA" }, 
             { url: base + '/basketball/mens-college-basketball', league: "NCAAM", params: "&groups=50" }, 
-            { url: base + '/basketball/fiba.mens.world.cup', league: "FIBA Men" },
-            { url: base + '/basketball/fiba.womens.world.cup', league: "FIBA Women" }
+            { url: base + '/basketball/fiba', league: "FIBA Men" },
+            { url: base + '/basketball/fiba', league: "FIBA Women" }
         ];
         case models.sports.MLS: return [
             { url: base + '/soccer/usa.1', league: "MLS" }, 
@@ -102,7 +102,7 @@ function getEndpointsForSport(sport) {
         case models.sports.RUGBY: return [
             { url: base + '/rugby-league/3', league: "NRL" }, 
             { url: base + '/rugby/180659', league: "Six Nations" },
-            { url: base + '/rugby/world-cup', league: "Rugby WC" }
+            { url: base + '/rugby/164205', league: "Rugby WC" }
         ];
         case models.sports.CRICKET: return [
             { url: [base + '/cricket/8039', base + '/cricket/8040'], league: "International" },
@@ -148,10 +148,7 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
         });
     });
 
-    if (fetchTasks.length === 0) {
-        onError();
-        return;
-    }
+    // We defer the fetchTasks length check because dynamic discovery adds tasks later.
 
     function executeFetchTasks() {
         // Limit maximum concurrent tasks to prevent Pebble connection pool exhaustion (usually max 10)
@@ -357,12 +354,29 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
                     }
                     executeFetchTasks();
                 }
-            };
-            headerReq.onerror = function () {
+
+                // If there are no fetchTasks after Dynamic Discovery, error out instead of hanging.
+                if (fetchTasks.length === 0) {
+                    onError();
+                } else {
+                    executeFetchTasks();
+                }
+            }
+        };
+        headerReq.onerror = function () {
+            if (fetchTasks.length === 0) {
+                onError();
+            } else {
                 executeFetchTasks();
-            };
-            headerReq.send();
-            return;
+            }
+        };
+        headerReq.send();
+    } else {
+        // Safe check for the case where endpoints.length was 0 earlier, but handled before. Just in case.
+        if (fetchTasks.length === 0) {
+            onError();
+        } else {
+            executeFetchTasks();
         }
     }
 
@@ -597,7 +611,7 @@ function insertUserPin(pin) {
 
 function updateTimelinePins(games) {
     const now = new Date();
-    const future48h = new Date(now.getTime() + (48 * 60 * 60 * 1000));
+    const future72h = new Date(now.getTime() + (72 * 60 * 60 * 1000));
 
     // CACHE FIX: Check localStorage to prevent spamming Rebble servers with duplicate pins
     // Now storing as an object mapping pinId to localTimeISO so if the time changes, we push it again.
@@ -614,7 +628,7 @@ function updateTimelinePins(games) {
 
     games.forEach(game => {
         if (game.startTime && !isNaN(game.startTime.getTime())) {
-            if (game.startTime > now && game.startTime < future48h) {
+            if (game.startTime > now && game.startTime < future72h) {
                 let pinId = "game-" + game.id;
                 let localTimeISO = game.startTime.toISOString();
                 
