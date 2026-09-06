@@ -276,79 +276,44 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
         }
     }
 
-    // Append date window to ensure 14 days of upcoming games are fetched (fixes missing future games)
-    if (sport !== models.sports.TENNIS && sport !== models.sports.NFL && sport !== models.sports.MMA) {
-        function getFormattedDate(d) {
-            let year = d.getFullYear();
-            let month = (d.getMonth() + 1).toString().padStart(2, '0');
-            let day = d.getDate().toString().padStart(2, '0');
-            return `${year}${month}${day}`;
-        }
-        const now = new Date();
-        const futureLimit = new Date(now.getTime() + (7 * 24 * 60 * 60 * 1000));
-        const pastLimit = new Date(now.getTime() - (1 * 24 * 60 * 60 * 1000));
-        const dateParams = `&dates=${getFormattedDate(pastLimit)}-${getFormattedDate(futureLimit)}&limit=100`;
-
-        fetchTasks.forEach(task => {
-            task.params += dateParams;
-        });
-    }
-
-    // Dynamic Discovery: Pre-Flight Check for all sports except Tennis
-    if (sport !== models.sports.TENNIS && (leagueIndex === undefined || leagueIndex === null || leagueIndex === 0)) {
-        let sportString = "";
-        switch (sport) {
-            case models.sports.NFL: sportString = "football"; break;
-            case models.sports.MLB: sportString = "baseball"; break;
-            case models.sports.NHL: sportString = "hockey"; break;
-            case models.sports.NBA: sportString = "basketball"; break;
-            case models.sports.MLS: sportString = "soccer"; break;
-            case models.sports.RUGBY: sportString = "rugby"; break;
-            case models.sports.CRICKET: sportString = "cricket"; break;
-            case models.sports.AFL: sportString = "australian-football"; break;
-            case models.sports.MMA: sportString = "mma"; break;
-        }
-
-        if (sportString !== "") {
-            let headerReq = new XMLHttpRequest();
-            headerReq.open('GET', 'https://site.web.api.espn.com/apis/personalized/v2/scoreboard/header?sport=' + encodeURIComponent(sportString) + '&t=' + Date.now());
-            headerReq.onload = function () {
-                if (headerReq.readyState == 4) {
-                    if (headerReq.status == 200) {
-                        try {
-                            let headerData = JSON.parse(headerReq.responseText);
-                            if (headerData.sports && headerData.sports.length > 0) {
-                                let activeLeagues = headerData.sports[0].leagues;
-                                if (activeLeagues) {
-                                    activeLeagues.forEach(league => {
-                                        if (league.id) {
-                                            let dynamicUrl = "https://site.api.espn.com/apis/site/v2/sports/" + encodeURIComponent(sportString) + "/" + encodeURIComponent(league.id);
-                                            if (!fetchTasks.some(t => t.url === dynamicUrl)) {
-                                                console.log("[DYNAMIC DISCOVERY] Added Active " + sportString.toUpperCase() + " Tour ID: " + league.id + " (" + (league.name || "Tour") + ")");
-                                                // Inherit the dateParams computed above!
-                                                const dateParams = fetchTasks.length > 0 ? fetchTasks[0].params : "";
-                                                fetchTasks.push({ url: dynamicUrl, league: league.abbreviation || "International", params: dateParams });
-                                            }
+    // Dynamic Discovery: Pre-Flight Check for BOTH Cricket and Rugby
+    if ((sport == models.sports.CRICKET || sport == models.sports.RUGBY) && (leagueIndex === undefined || leagueIndex === null || leagueIndex === 0)) {
+        let sportString = (sport == models.sports.CRICKET) ? "cricket" : "rugby";
+        let headerReq = new XMLHttpRequest();
+        headerReq.open('GET', 'https://site.web.api.espn.com/apis/personalized/v2/scoreboard/header?sport=' + encodeURIComponent(sportString) + '&t=' + Date.now());
+        headerReq.onload = function () {
+            if (headerReq.readyState == 4) {
+                if (headerReq.status == 200) {
+                    try {
+                        let headerData = JSON.parse(headerReq.responseText);
+                        if (headerData.sports && headerData.sports.length > 0) {
+                            let activeLeagues = headerData.sports[0].leagues;
+                            if (activeLeagues) {
+                                activeLeagues.forEach(league => {
+                                    if (league.id) {
+                                        let dynamicUrl = "https://site.api.espn.com/apis/site/v2/sports/" + encodeURIComponent(sportString) + "/" + encodeURIComponent(league.id);
+                                        if (!fetchTasks.some(t => t.url === dynamicUrl)) {
+                                            console.log("[DYNAMIC DISCOVERY] Added Active " + sportString.toUpperCase() + " Tour ID: " + league.id + " (" + (league.name || "Tour") + ")");
+                                            fetchTasks.push({ url: dynamicUrl, league: league.abbreviation || "International", params: "" });
                                         }
-                                    });
-                                }
+                                    }
+                                });
                             }
-                        } catch (e) {
-                            console.log("Dynamic Header Parse Error");
                         }
+                    } catch (e) {
+                        console.log("Dynamic Header Parse Error");
                     }
-                    executeFetchTasks();
                 }
-            };
-            headerReq.onerror = function () {
                 executeFetchTasks();
-            };
-            headerReq.send();
-            return;
-        }
+            }
+        };
+        headerReq.onerror = function () {
+            executeFetchTasks();
+        };
+        headerReq.send();
+    } else {
+        executeFetchTasks();
     }
-
-    executeFetchTasks();
 }
 
 function getGame(id, sport, onLoad, onError) {
