@@ -88,7 +88,7 @@ static void on_games_error(AppError error) {
     if (!s_error_layer) {
         Layer *window_layer = window_get_root_layer(gamesWindow);
         GRect bounds = layer_get_frame(window_layer);
-        GRect error_layer_bounds = GRect(bounds.origin.x + PBL_IF_ROUND_ELSE(32, 16), bounds.origin.y + bounds.size.h / 2 - PBL_IF_ROUND_ELSE(24, 36), bounds.size.w - PBL_IF_ROUND_ELSE(64, 32), 61);
+        GRect error_layer_bounds = GRect(bounds.origin.x + PBL_IF_ROUND_ELSE(32, 8), bounds.origin.y + bounds.size.h / 2 - PBL_IF_ROUND_ELSE(24, 36), bounds.size.w - PBL_IF_ROUND_ELSE(64, 16), 75);
         s_error_layer = error_layer_create(error_layer_bounds);
         layer_add_child(window_layer, (Layer*)s_error_layer);
     }
@@ -147,11 +147,10 @@ static void refresh_games(Sport sport) {
 
 static uint16_t menu_get_num_rows_callback(MenuLayer *menu_layer, uint16_t section_index, void *data) {
     if (refreshing) return 0;
-    return game_count == 0 ? 1 : game_count;
+    return game_count;
 }
 
 static int16_t menu_get_row_height_callback (MenuLayer *menu_layer, MenuIndex *cell_index, void *callback_context) {
-    if (game_count == 0) { return layer_get_bounds(menu_layer_get_layer(menu_layer)).size.h; }
     #if defined(PBL_RECT)
         return 58;
     #elif defined(PBL_ROUND)
@@ -222,13 +221,6 @@ static void menu_cell_game_small_draw(GContext* ctx, const Layer *cell_layer, co
 
 static void menu_draw_row_callback(GContext* ctx, const Layer *cell_layer, MenuIndex *cell_index, void *data) {
     if (s_menu_layer == NULL) return;
-    if (game_count == 0 || games == NULL) {
-        if (refreshing) return; 
-        bool selected = menu_layer_get_selected_index(s_menu_layer).row == cell_index->row;
-        graphics_context_set_text_color(ctx, selected ? GColorWhite : GColorBlack);
-        graphics_draw_text(ctx, "No games right now.\n\nIt may be the off-season.", fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD), layer_get_bounds(cell_layer), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
-        return;
-    }
     if (cell_index->row >= game_count || games == NULL) return;
     bool selected = menu_layer_get_selected_index(s_menu_layer).row == cell_index->row;
 
