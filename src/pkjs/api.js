@@ -385,6 +385,8 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
             executeFetchTasks();
         }
     }
+
+    executeFetchTasks();
 }
 
 function getGame(id, sport, onLoad, onError) {
