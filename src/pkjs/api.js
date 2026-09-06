@@ -181,6 +181,7 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
                                             if (grouping.competitions) {
                                                 grouping.competitions.forEach(comp => {
                                                     // Skip cancelled/retired/walkover matches, and TBD vs TBD matches
+                                                    // which bloat the tennis timeline and cause scrolling issues
                                                     let status = comp.status && comp.status.type ? comp.status.type.name : "";
                                                     let shortDetail = comp.status && comp.status.type ? (comp.status.type.shortDetail || "") : "";
                                                     let p1 = comp.competitors && comp.competitors.length > 1 ? (comp.competitors[1].athlete || comp.competitors[1].team) : null;
@@ -273,8 +274,8 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
                 });
 
                 const now = new Date();
-                const futureLimit = new Date(now.getTime() + (7 * 24 * 60 * 60 * 1000));
-                const pastLimit = new Date(now.getTime() - (24 * 60 * 60 * 1000));
+                const futureLimit = new Date(now.getTime() + (14 * 24 * 60 * 60 * 1000));
+                const pastLimit = new Date(now.getTime() - (14 * 24 * 60 * 60 * 1000));
                 const filteredGames = uniqueGames.filter(game => {
                     if (game.startTime && !isNaN(game.startTime.getTime())) {
                         return game.startTime >= pastLimit && game.startTime <= futureLimit;

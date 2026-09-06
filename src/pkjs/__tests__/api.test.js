@@ -31,7 +31,7 @@ describe('API Parsing logic', () => {
     });
 
     test('should parse normal flat competitions correctly', (done) => {
-        const futureBoundary = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+        const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
         const fakeData = {
             events: [
                 {
@@ -39,7 +39,7 @@ describe('API Parsing logic', () => {
                     competitions: [
                         {
                             id: "c1",
-                            date: futureBoundary,
+                            date: yesterday,
                             competitors: [
                                 { team: { abbreviation: "TEAM A", id: "1" }, score: "10" },
                                 { team: { abbreviation: "TEAM B", id: "2" }, score: "5" }
@@ -73,10 +73,10 @@ describe('API Parsing logic', () => {
         xhrMock.onload();
     });
 
-    test('should filter out games scheduled more than 7 days in advance', (done) => {
+    test('should filter out games scheduled more than 14 days in advance', (done) => {
         const now = new Date();
         const future15Days = new Date(now.getTime() + (15 * 24 * 60 * 60 * 1000));
-        const future5Days = new Date(now.getTime() + (5 * 24 * 60 * 60 * 1000));
+        const future12Days = new Date(now.getTime() + (12 * 24 * 60 * 60 * 1000));
 
         const fakeData = {
             events: [
@@ -99,7 +99,7 @@ describe('API Parsing logic', () => {
                     competitions: [
                         {
                             id: "near",
-                            date: future5Days.toISOString(),
+                            date: future12Days.toISOString(),
                             competitors: [
                                 { team: { abbreviation: "NEAR1" } },
                                 { team: { abbreviation: "NEAR2" } }
@@ -127,7 +127,7 @@ describe('API Parsing logic', () => {
     test('should parse nested groupings for Tennis correctly and skip bad matches', (done) => {
         const today = new Date(Date.now()).toISOString();
         const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-        const futureBoundary = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(); // shift into 7-day future
+        const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
         const fakeTennisData = {
             events: [
                 {
@@ -138,7 +138,7 @@ describe('API Parsing logic', () => {
                             competitions: [
                                 {
                                     id: "t1",
-                                    date: futureBoundary,
+                                    date: yesterday,
                                     competitors: [
                                         { athlete: { displayName: "Player 1", shortName: "P. One" }, score: "2" },
                                         { athlete: { displayName: "Player 2", shortName: "P. Two" }, score: "0" }
@@ -171,7 +171,7 @@ describe('API Parsing logic', () => {
                                 {
                                     // Should be skipped because it is retired
                                     id: "t4",
-                                    date: futureBoundary,
+                                    date: yesterday,
                                     competitors: [
                                         { athlete: { displayName: "Player 5" } },
                                         { athlete: { displayName: "Player 6" } }
@@ -181,7 +181,7 @@ describe('API Parsing logic', () => {
                                 {
                                     // Should be skipped because shortDetail says Retired
                                     id: "t5",
-                                    date: futureBoundary,
+                                    date: yesterday,
                                     competitors: [
                                         { athlete: { displayName: "Player 7" } },
                                         { athlete: { displayName: "Player 8" } }
