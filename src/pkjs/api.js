@@ -329,8 +329,6 @@ if (typeof Pebble !== 'undefined' && Pebble.getActiveWatchInfo) {
 }
 
                 onLoad(filteredGames);
-
-                onLoad(filteredGames);
             } else if (hasCriticalError) {
                 onError(); 
             } else {
