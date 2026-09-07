@@ -48,7 +48,6 @@ function getFavoriteGames(favorites, onLoad, onError) {
             },
             () => {
                 hasError = true;
-                // FIX: Acknowledge completion even if it failed so the watch doesn't hang!
                 loadedSports.push(sport); 
                 
                 if (favoriteSports.every(s => loadedSports.includes(s))) {
@@ -148,10 +147,27 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
         });
     });
 
-    // We defer the fetchTasks length check because dynamic discovery adds tasks later.
+    // Date Window Implementation - Exclude Cricket as it breaks on date params
+    function getFormattedDate(d) {
+        let year = d.getFullYear();
+        let month = (d.getMonth() + 1).toString().padStart(2, '0');
+        let day = d.getDate().toString().padStart(2, '0');
+        return `${year}${month}${day}`;
+    }
+    
+    const now = new Date();
+    const daysAhead = (sport === models.sports.TENNIS) ? 7 : 14;
+    const futureLimitDate = new Date(now.getTime() + (daysAhead * 24 * 60 * 60 * 1000));
+    const pastLimitDate = new Date(now.getTime() - (1 * 24 * 60 * 60 * 1000));
+    const dateParams = `&dates=${getFormattedDate(pastLimitDate)}-${getFormattedDate(futureLimitDate)}&limit=100`;
+
+    if (sport !== models.sports.CRICKET) {
+        fetchTasks.forEach(task => {
+            task.params += dateParams;
+        });
+    }
 
     function executeFetchTasks() {
-        // Limit maximum concurrent tasks to prevent Pebble connection pool exhaustion (usually max 10)
         let activeRequests = 0;
         let taskIndex = 0;
         const MAX_CONCURRENT = 4;
@@ -166,51 +182,63 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
             const fullUrl = task.url + "/scoreboard?t=" + Date.now() + task.params;
             
             req.open('GET', fullUrl);
+            req.timeout = 10000; 
+            
+            req.ontimeout = function () {
+                console.log("XHR Timeout for: " + fullUrl);
+                hasCriticalError = true;
+                completedRequests++;
+                activeRequests--;
+                checkCompletion();
+                runNext();
+            };
+
             req.onload = function () {
                 if (req.readyState == 4) {
                     if (req.status == 200) {
                         try {
-                            const sportsData = JSON.parse(req.responseText);
+                            let sportsData = JSON.parse(req.responseText);
                             if (sportsData.events) {
                                 let allParsedEvents = [];
+                                
+                                const processCompetition = (comp, event) => {
+                                    let status = comp.status && comp.status.type ? comp.status.type.name : "";
+                                    let shortDetail = comp.status && comp.status.type ? (comp.status.type.shortDetail || "") : "";
+                                    let p1 = comp.competitors && comp.competitors.length > 1 ? (comp.competitors[1].athlete || comp.competitors[1].team) : null;
+                                    let p2 = comp.competitors && comp.competitors.length > 0 ? (comp.competitors[0].athlete || comp.competitors[0].team) : null;
+                                    let name1 = p1 ? (p1.displayName || p1.shortName || "TBD") : "TBD";
+                                    let name2 = p2 ? (p2.displayName || p2.shortName || "TBD") : "TBD";
+
+                                    if (status === "STATUS_RETIRED" || status === "STATUS_WALKOVER") return;
+                                    if (shortDetail.indexOf("Retired") !== -1 || shortDetail.indexOf("Walkover") !== -1) return;
+                                    if (name1 === "TBD" && name2 === "TBD") return;
+
+                                    allParsedEvents.push({
+                                        id: comp.id || event.id,
+                                        eventId: event.id,
+                                        name: event.name,
+                                        competitions: [comp]
+                                    });
+                                };
+
                                 sportsData.events.forEach(event => {
                                     if (event.competitions) {
-                                        allParsedEvents.push(event);
+                                        event.competitions.forEach(comp => processCompetition(comp, event));
                                     } else if (event.groupings) {
                                         event.groupings.forEach(grouping => {
                                             if (grouping.competitions) {
-                                                grouping.competitions.forEach(comp => {
-                                                    // Skip cancelled/retired/walkover matches, and TBD vs TBD matches
-                                                    let status = comp.status && comp.status.type ? comp.status.type.name : "";
-                                                    let shortDetail = comp.status && comp.status.type ? (comp.status.type.shortDetail || "") : "";
-                                                    let p1 = comp.competitors && comp.competitors.length > 1 ? (comp.competitors[1].athlete || comp.competitors[1].team) : null;
-                                                    let p2 = comp.competitors && comp.competitors.length > 0 ? (comp.competitors[0].athlete || comp.competitors[0].team) : null;
-                                                    let name1 = p1 ? (p1.displayName || p1.shortName || "TBD") : "TBD";
-                                                    let name2 = p2 ? (p2.displayName || p2.shortName || "TBD") : "TBD";
-
-                                                    if (status === "STATUS_RETIRED" || status === "STATUS_WALKOVER") {
-                                                        return;
-                                                    }
-                                                    if (shortDetail.indexOf("Retired") !== -1 || shortDetail.indexOf("Walkover") !== -1) {
-                                                        return;
-                                                    }
-                                                    if (name1 === "TBD" && name2 === "TBD") {
-                                                        return;
-                                                    }
-
-                                                    allParsedEvents.push({
-                                                        id: comp.id || event.id,
-                                                        eventId: event.id,
-                                                        name: event.name,
-                                                        competitions: [comp]
-                                                    });
-                                                });
+                                                grouping.competitions.forEach(comp => processCompetition(comp, event));
                                             }
                                         });
                                     }
                                 });
+
                                 let games = allParsedEvents.map(event => parseEvent(sport, task.league, event)).filter(g => g !== null);
                                 allGames = allGames.concat(games);
+                                
+                                // Immediate Garbage Collection
+                                allParsedEvents = null;
+                                sportsData = null;
                             }
                         } catch (e) {
                             console.log("JSON Parse Error for: " + fullUrl);
@@ -235,7 +263,6 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
             req.send();
         }
 
-        // Start initial batch of requests
         for (let i = 0; i < MAX_CONCURRENT && i < fetchTasks.length; i++) {
             runNext();
         }
@@ -272,15 +299,36 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
                     return 0;
                 });
 
-                const now = new Date();
-                const futureLimit = new Date(now.getTime() + (14 * 24 * 60 * 60 * 1000));
-                const pastLimit = new Date(now.getTime() - (14 * 24 * 60 * 60 * 1000));
-                const filteredGames = uniqueGames.filter(game => {
+                const nowTime = new Date();
+                const daysLimit = (sport === models.sports.TENNIS) ? 7 : 14;
+                const futureLimit = new Date(nowTime.getTime() + (daysLimit * 24 * 60 * 60 * 1000));
+                const pastLimit = new Date(nowTime.getTime() - (14 * 24 * 60 * 60 * 1000));
+                
+                let filteredGames = uniqueGames.filter(game => {
                     if (game.startTime && !isNaN(game.startTime.getTime())) {
                         return game.startTime >= pastLimit && game.startTime <= futureLimit;
                     }
                     return true;
                 });
+
+                // Hardware caps to prevent AppMessage inbox overflow - Depending on platform
+if (typeof Pebble !== 'undefined' && Pebble.getActiveWatchInfo) {
+    let watchInfo = Pebble.getActiveWatchInfo();
+    if (watchInfo) {
+        const platform = watchInfo.platform;
+        const platforms64k = ['basalt', 'chalk', 'diorite', 'flint'];
+
+        if (platform === 'aplite' && filteredGames.length > 5) {
+            console.log("Aplite Detected: Capping payload at 5 games.");
+            filteredGames = filteredGames.slice(0, 5);
+        } else if (platforms64k.indexOf(platform) !== -1 && filteredGames.length > 50) {
+            console.log(platform + " Detected: Capping payload at 50 games.");
+            filteredGames = filteredGames.slice(0, 50);
+        }
+    }
+}
+
+                onLoad(filteredGames);
 
                 onLoad(filteredGames);
             } else if (hasCriticalError) {
@@ -291,26 +339,8 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
         }
     }
 
-    // Append date window to ensure 14 days of upcoming games are fetched (fixes missing future games)
-    if (sport !== models.sports.TENNIS && sport !== models.sports.NFL && sport !== models.sports.MMA) {
-        function getFormattedDate(d) {
-            let year = d.getFullYear();
-            let month = (d.getMonth() + 1).toString().padStart(2, '0');
-            let day = d.getDate().toString().padStart(2, '0');
-            return `${year}${month}${day}`;
-        }
-        const now = new Date();
-        const futureLimit = new Date(now.getTime() + (14 * 24 * 60 * 60 * 1000));
-        const pastLimit = new Date(now.getTime() - (1 * 24 * 60 * 60 * 1000));
-        const dateParams = `&dates=${getFormattedDate(pastLimit)}-${getFormattedDate(futureLimit)}&limit=100`;
-
-        fetchTasks.forEach(task => {
-            task.params += dateParams;
-        });
-    }
-
-    // Dynamic Discovery: Pre-Flight Check for all sports except Tennis
-    if (sport !== models.sports.TENNIS && (leagueIndex === undefined || leagueIndex === null || leagueIndex === 0)) {
+    // Dynamic Discovery: Pre-Flight Check for active/future tournaments
+    if (leagueIndex === undefined || leagueIndex === null || leagueIndex === 0) {
         let sportString = "";
         switch (sport) {
             case models.sports.NFL: sportString = "football"; break;
@@ -322,11 +352,26 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
             case models.sports.CRICKET: sportString = "cricket"; break;
             case models.sports.AFL: sportString = "australian-football"; break;
             case models.sports.MMA: sportString = "mma"; break;
+            case models.sports.TENNIS: sportString = "tennis"; break; 
         }
 
         if (sportString !== "") {
             let headerReq = new XMLHttpRequest();
-            headerReq.open('GET', 'https://site.web.api.espn.com/apis/personalized/v2/scoreboard/header?sport=' + encodeURIComponent(sportString) + '&t=' + Date.now());
+            let headerParams = (sport !== models.sports.CRICKET) ? dateParams : "";
+            let headerUrl = 'https://site.web.api.espn.com/apis/personalized/v2/scoreboard/header?sport=' + encodeURIComponent(sportString) + headerParams + '&t=' + Date.now();
+            
+            headerReq.open('GET', headerUrl);
+            headerReq.timeout = 10000;
+            
+            headerReq.ontimeout = function () {
+                console.log("Dynamic Discovery Timeout");
+                if (fetchTasks.length === 0) {
+                    onError();
+                } else {
+                    executeFetchTasks();
+                }
+            };
+            
             headerReq.onload = function () {
                 if (headerReq.readyState == 4) {
                     if (headerReq.status == 200) {
@@ -340,9 +385,8 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
                                             let dynamicUrl = "https://site.api.espn.com/apis/site/v2/sports/" + encodeURIComponent(sportString) + "/" + encodeURIComponent(league.id);
                                             if (!fetchTasks.some(t => t.url === dynamicUrl)) {
                                                 console.log("[DYNAMIC DISCOVERY] Added Active " + sportString.toUpperCase() + " Tour ID: " + league.id + " (" + (league.name || "Tour") + ")");
-                                                // Inherit the dateParams computed above!
-                                                const dateParams = fetchTasks.length > 0 ? fetchTasks[0].params : "";
-                                                fetchTasks.push({ url: dynamicUrl, league: league.abbreviation || "International", params: dateParams });
+                                                const currentParams = fetchTasks.length > 0 ? fetchTasks[0].params : "";
+                                                fetchTasks.push({ url: dynamicUrl, league: league.abbreviation || "International", params: currentParams });
                                             }
                                         }
                                     });
@@ -353,7 +397,6 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
                         }
                     }
 
-                    // If there are no fetchTasks after Dynamic Discovery, error out instead of hanging.
                     if (fetchTasks.length === 0) {
                         onError();
                     } else {
@@ -370,7 +413,6 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
             };
             headerReq.send();
         } else {
-            // Fallback if no specific dynamic header string exists
             if (fetchTasks.length === 0) {
                 onError();
             } else {
@@ -378,15 +420,12 @@ function getGamesForSport(sport, leagueIndex, onLoad, onError) {
             }
         }
     } else {
-        // Safe check for the case where endpoints.length was 0 earlier, but handled before. Just in case.
         if (fetchTasks.length === 0) {
             onError();
         } else {
             executeFetchTasks();
         }
     }
-
-    executeFetchTasks();
 }
 
 function getGame(id, sport, onLoad, onError) {
@@ -406,7 +445,7 @@ function parseEvent(sport, league, event) {
     if (!competition) return null;
 
     const competitors = competition.competitors || [];
-    const date = new Date(Date.parse(competition.date));
+    const date = new Date(competition.date); 
     const status = competition.status || { type: { name: "STATUS_SCHEDULED", shortDetail: "" } };
 
     const [details, time] = (function(type) {
@@ -414,6 +453,7 @@ function parseEvent(sport, league, event) {
             let localTime = "";
             let localDate = "";
             
+            // Safari Safety: Ensure date parsed correctly before extracting hours
             if (date && !isNaN(date.getTime())) {
                 localDate = utils.dateToScheduleDate(date);
                 
@@ -460,7 +500,6 @@ function parseEvent(sport, league, event) {
     let score1 = status.type.name == "STATUS_SCHEDULED" ? "" : String(competitor1.score || "");
     let score2 = status.type.name == "STATUS_SCHEDULED" ? "" : String(competitor2.score || "");
 
-    // Tennis matches sometimes omit the main score and only provide linescores (sets won)
     if (sport == models.sports.TENNIS) {
         if (!score1 && competitor1.linescores) {
             let sets = 0;
@@ -472,14 +511,11 @@ function parseEvent(sport, league, event) {
             competitor2.linescores.forEach(l => { if (l.winner) sets++; });
             score2 = sets.toString();
         }
-        // If it's final or in progress but still no sets won, default to "0" instead of empty string
-        // so the UI knows it's an active/completed game and draws the score layer
         if (!score1 && status.type.name != "STATUS_SCHEDULED") score1 = "0";
         if (!score2 && status.type.name != "STATUS_SCHEDULED") score2 = "0";
     }
 
     if (sport == models.sports.CRICKET) {
-        // Trim overs and keep only the latest innings for compact displays
         if (score1) score1 = score1.split(" (")[0].trim();
         if (score2) score2 = score2.split(" (")[0].trim();
 
@@ -571,26 +607,21 @@ function possessionByTeam(possessionId, team1, team2) {
 function getTimelineIcon(sport) {
     switch (sport) {
         case models.sports.NFL: return "system://images/AMERICAN_FOOTBALL";
-        case models.sports.MLB: return "system://images/BASEBALL";
+        case models.sports.MLB: return "system://images/TIMELINE_BASEBALL"; // Updated
         case models.sports.NHL: return "system://images/HOCKEY_GAME";
         case models.sports.NBA: return "system://images/BASKETBALL";
         case models.sports.MLS: return "system://images/SOCCER_GAME";
         case models.sports.CRICKET: return "system://images/CRICKET_GAME";
-        case models.sports.TENNIS: return "system://images/TENNIS_BALL";
-        default: return "system://images/GENERIC_SPORTS"; 
+        case models.sports.TENNIS: return "system://images/TIMELINE_SPORTS"; // Updated (No native tennis icon)
+        default: return "system://images/TIMELINE_SPORTS"; // Updated
     }
 }
 
 function insertUserPin(pin) {
-    // Local Pins are supported in newer Pebble apps and work offline
     if (typeof Pebble !== 'undefined' && typeof Pebble.insertTimelinePin === 'function') {
         Pebble.insertTimelinePin(pin);
         console.log("Local pin insertion requested: " + pin.id);
     } else {
-        // Fallback: If we can get a timeline token, send it normally.
-        // If getting the token fails (e.g. offline), STILL send the request
-        // with a dummy token. The Pebble app on the phone intercepts
-        // requests to timeline-api.getpebble.com and creates local pins!
         var sendRequest = function(token) {
             var req = new XMLHttpRequest();
             req.open('PUT', 'https://timeline-api.getpebble.com/v1/user/pins/' + encodeURIComponent(pin.id), true);
@@ -619,15 +650,12 @@ function updateTimelinePins(games) {
     const now = new Date();
     const future72h = new Date(now.getTime() + (72 * 60 * 60 * 1000));
 
-    // CACHE FIX: Check localStorage to prevent spamming Rebble servers with duplicate pins
-    // Now storing as an object mapping pinId to localTimeISO so if the time changes, we push it again.
     let pushedPins = {};
     try { 
         let parsed = JSON.parse(localStorage.getItem("pushed_pins"));
         if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
             pushedPins = parsed;
         } else if (Array.isArray(parsed)) {
-            // Migration from old array format
             parsed.forEach(id => { pushedPins[id] = true; });
         }
     } catch(e) {}
@@ -638,7 +666,6 @@ function updateTimelinePins(games) {
                 let pinId = "game-" + game.id;
                 let localTimeISO = game.startTime.toISOString();
                 
-                // SKIPPING: We already sent this to Rebble with the EXACT SAME TIME!
                 if (pushedPins[pinId] === localTimeISO) return;
 
                 let bodyText = "Starts at: " + game.time + " (" + game.details + ")";
@@ -646,7 +673,7 @@ function updateTimelinePins(games) {
 
                 var pin = {
                     "id": pinId,
-                    "time": game.startTime,
+                   "time": localTimeISO,
                     "duration": 180,
                     "layout": {
                         "type": "genericPin",
@@ -664,7 +691,6 @@ function updateTimelinePins(games) {
         }
     });
 
-    // Keep the cache size healthy so it doesn't blow up the phone's local storage limits
     let keys = Object.keys(pushedPins);
     if (keys.length > 100) {
         let newPushedPins = {};
