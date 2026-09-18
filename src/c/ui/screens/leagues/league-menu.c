@@ -13,6 +13,7 @@ static Sport s_current_sport;
 static char* s_leagues[12]; 
 static int s_num_leagues = 0;
 static HeaderData s_header_data;
+static MenuIndex s_saved_scroll_pos = {0, 0};
 
 static void load_league_folders() {
     switch (s_current_sport) {
@@ -57,19 +58,11 @@ static void menu_select_callback(MenuLayer *menu_layer, MenuIndex *cell_index, v
     show_games_menu(s_current_sport, cell_index->row);
 }
 
-static void initialise_ui(Window *window) {
+static void build_menu_layer(Window *window) {
+    if (s_menu_layer) return;
+
     Layer *window_layer = window_get_root_layer(window);
     GRect bounds = layer_get_frame(window_layer);
-    
-    s_status_bar = status_bar_layer_create();
-    status_bar_layer_set_colors(s_status_bar, GColorDukeBlue, GColorWhite);
-
-    s_header_data.icon = image_cache_get_sport_icon(s_current_sport);
-    s_header_data.title = sport_get_name(s_current_sport);
-    s_header_data.info = NULL;
-    s_header_data.under_status_bar = true;
-
-    s_header = create_header_layer(bounds, s_header_data);
     
     int header_height = PBL_IF_RECT_ELSE(layer_get_bounds(s_header).size.h, 8);
     bounds.origin.y += header_height + 4;
@@ -84,21 +77,73 @@ static void initialise_ui(Window *window) {
     });
 
     menu_layer_set_highlight_colors(s_menu_layer, GColorDukeBlue, GColorWhite);
-    
     menu_layer_set_click_config_onto_window(s_menu_layer, window);
-
+    
     layer_add_child(window_layer, menu_layer_get_layer(s_menu_layer));
+
+    // Restore scroll position smoothly upon returning
+    menu_layer_set_selected_index(s_menu_layer, s_saved_scroll_pos, MenuRowAlignCenter, false);
+}
+
+static void destroy_menu_layer(void) {
+    if (s_menu_layer) {
+        s_saved_scroll_pos = menu_layer_get_selected_index(s_menu_layer);
+        layer_remove_from_parent(menu_layer_get_layer(s_menu_layer));
+        menu_layer_destroy(s_menu_layer);
+        s_menu_layer = NULL;
+    }
+}
+
+static void initialise_ui(Window *window) {
+    Layer *window_layer = window_get_root_layer(window);
+    GRect bounds = layer_get_frame(window_layer);
+    
+    s_status_bar = status_bar_layer_create();
+    status_bar_layer_set_colors(s_status_bar, GColorDukeBlue, GColorWhite);
+
+    #if defined(PBL_PLATFORM_APLITE)
+        s_header_data.icon = NULL;
+    #else
+        s_header_data.icon = image_cache_get_sport_icon(s_current_sport);
+    #endif
+
+    s_header_data.title = sport_get_name(s_current_sport);
+    s_header_data.info = NULL;
+    s_header_data.under_status_bar = true;
+
+    s_header = create_header_layer(bounds, s_header_data);
+    
     layer_add_child(window_layer, s_header);
     layer_add_child(window_layer, status_bar_layer_get_layer(s_status_bar));
+
+    build_menu_layer(window);
 }
 
 static void destroy_ui(Window *window) {
-    if(s_menu_layer) { menu_layer_destroy(s_menu_layer); s_menu_layer = NULL; }
+    destroy_menu_layer();
     if(s_status_bar) { status_bar_layer_destroy(s_status_bar); s_status_bar = NULL; }
     if(s_header) { layer_destroy(s_header); s_header = NULL; }
 }
 
+static void window_appear(Window *window) {
+    #if defined(PBL_PLATFORM_APLITE)
+    // Rebuild the heavy menu layer when navigating back
+    build_menu_layer(window);
+    #endif
+}
+
+static void window_disappear(Window *window) {
+    #if defined(PBL_PLATFORM_APLITE)
+    // Destroy the MenuLayer to save RAM while viewing games
+    destroy_menu_layer();
+    #endif
+}
+
 void show_league_menu(Sport sport) {
+    if (s_current_sport != sport) {
+        s_saved_scroll_pos.section = 0;
+        s_saved_scroll_pos.row = 0;
+    }
     s_current_sport = sport;
     load_league_folders();
     
@@ -107,6 +152,8 @@ void show_league_menu(Sport sport) {
         WindowHandlers handlers = {0};
         handlers.load = initialise_ui;
         handlers.unload = destroy_ui;
+        handlers.appear = window_appear;
+        handlers.disappear = window_disappear;
         window_set_window_handlers(s_window, handlers);
     }
     
@@ -116,5 +163,7 @@ void show_league_menu(Sport sport) {
 }
 
 void hide_league_menu(void) {
-    window_stack_remove(s_window, true);
+    if (s_window) {
+        window_stack_remove(s_window, true);
+    }
 }

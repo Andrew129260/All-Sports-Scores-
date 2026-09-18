@@ -115,7 +115,7 @@ void progress_layer_destroy(ProgressLayer* progress_layer) {
     if (progress_layer) {
         ProgressLayerData *layer_data = (ProgressLayerData*) layer_get_data(progress_layer);
         
-        if (layer_data->animation) {
+        if (layer_data->animation && animation_is_scheduled(layer_data->animation)) {
             animation_unschedule(layer_data->animation);
         }
 

@@ -6,7 +6,11 @@
 #include "prefs/prefs-handler.h"
 
 // Optimize RAM by sizing buffers to their strict real-world limits
-const uint32_t inbox_size = 1024; // Plenty of room for long dynamic team strings
+#if defined(PBL_PLATFORM_APLITE)
+const uint32_t inbox_size = 640; // Safely handles a heavy game dictionary without dropping packets
+#else
+const uint32_t inbox_size = 1024; 
+#endif
 const uint32_t outbox_size = 128; // Only sending small integer request codes
 
 static bool s_js_ready;

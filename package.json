@@ -49,47 +49,64 @@
                 {
                     "file": "images/Mls-16.png",
                     "name": "Mls_16",
+                    "storageFormat": "pbi",
                     "targetPlatforms": null,
                     "type": "bitmap"
                 },
                 {
                     "file": "images/Baseball-16.png",
                     "name": "BASEBALL_16",
+                    "storageFormat": "pbi",
+                    "targetPlatforms": null,
                     "type": "bitmap"
                 },
                 {
                     "file": "images/Baseball-25.png",
                     "name": "BASEBALL_25",
+                    "storageFormat": "pbi",
+                    "targetPlatforms": null,
                     "type": "bitmap"
                 },
                 {
                     "file": "images/Basketball-16.png",
                     "name": "BASKETBALL_16",
+                    "storageFormat": "pbi",
+                    "targetPlatforms": null,
                     "type": "bitmap"
                 },
                 {
                     "file": "images/Basketball-25.png",
                     "name": "BASKETBALL_25",
+                    "storageFormat": "pbi",
+                    "targetPlatforms": null,
                     "type": "bitmap"
                 },
                 {
                     "file": "images/Error-25.png",
                     "name": "ERROR_25",
+                    "storageFormat": "pbi",
+                    "targetPlatforms": null,
                     "type": "bitmap"
                 },
                 {
                     "file": "images/Football-16.png",
                     "name": "FOOTBALL_16",
+                    "storageFormat": "pbi",
+                    "targetPlatforms": null,
                     "type": "bitmap"
                 },
                 {
                     "file": "images/Football-25.png",
                     "name": "FOOTBALL_25",
+                    "storageFormat": "pbi",
+                    "targetPlatforms": null,
                     "type": "bitmap"
                 },
                 {
                     "file": "images/Hockey-16.png",
                     "name": "HOCKEY_16",
+                    "storageFormat": "pbi",
+                    "targetPlatforms": null,
                     "type": "bitmap"
                 },
                 {
@@ -110,78 +127,98 @@
                 {
                     "file": "images/Cricket-16.png",
                     "name": "Cricket_16",
+                    "storageFormat": "pbi",
                     "targetPlatforms": null,
                     "type": "bitmap"
                 },
                 {
                     "file": "images/Cricket-25.png",
                     "name": "Cricket_25",
+                    "storageFormat": "pbi",
                     "targetPlatforms": null,
                     "type": "bitmap"
                 },
                 {
                     "file": "images/Generic-25.png",
                     "name": "GENERIC_25",
+                    "storageFormat": "pbi",
+                    "targetPlatforms": null,
                     "type": "bitmap"
                 },
                 {
                     "file": "images/Hockey-25.png",
                     "name": "HOCKEY_25",
+                    "storageFormat": "pbi",
+                    "targetPlatforms": null,
                     "type": "bitmap"
                 },
                 {
                     "file": "images/Mls-25.png",
                     "name": "Mls_25",
+                    "storageFormat": "pbi",
                     "targetPlatforms": null,
                     "type": "bitmap"
                 },
                 {
                     "file": "images/Rugby-16.png",
                     "name": "Rugby_16",
+                    "storageFormat": "pbi",
                     "targetPlatforms": null,
                     "type": "bitmap"
                 },
                 {
                     "file": "images/Rugby-25.png",
                     "name": "Rugby_25",
+                    "storageFormat": "pbi",
                     "targetPlatforms": null,
                     "type": "bitmap"
                 },
                 {
                     "file": "images/Soccer-16.png",
                     "name": "SOCCER_16",
+                    "storageFormat": "pbi",
+                    "targetPlatforms": null,
                     "type": "bitmap"
                 },
                 {
                     "file": "images/Soccer-25.png",
                     "name": "SOCCER_25",
+                    "storageFormat": "pbi",
+                    "targetPlatforms": null,
                     "type": "bitmap"
                 },
                 {
                     "file": "images/Star-16.png",
                     "name": "STAR_16",
+                    "storageFormat": "pbi",
+                    "targetPlatforms": null,
                     "type": "bitmap"
                 },
                 {
                     "file": "images/Star-25.png",
                     "name": "STAR_25",
+                    "storageFormat": "pbi",
+                    "targetPlatforms": null,
                     "type": "bitmap"
                 },
                 {
                     "file": "images/afl 16.png",
                     "name": "IMAGE_SPORT_AFL16",
+                    "storageFormat": "pbi",
                     "targetPlatforms": null,
                     "type": "bitmap"
                 },
                 {
                     "file": "images/afl 25.png",
                     "name": "IMAGE_SPORT_AFL25",
+                    "storageFormat": "pbi",
                     "targetPlatforms": null,
                     "type": "bitmap"
                 },
                 {
                     "file": "images/app icon 16 .png",
                     "name": "Appicon16",
+                    "storageFormat": "pbi",
                     "targetPlatforms": null,
                     "type": "bitmap"
                 },
@@ -189,30 +226,35 @@
                     "file": "images/app icon 25.png",
                     "menuIcon": true,
                     "name": "Appicon25",
+                    "storageFormat": "pbi",
                     "targetPlatforms": null,
                     "type": "bitmap"
                 },
                 {
                     "file": "images/mma 16.png",
                     "name": "IMAGE_SPORT_MMA16",
+                    "storageFormat": "pbi",
                     "targetPlatforms": null,
                     "type": "bitmap"
                 },
                 {
                     "file": "images/mma 25.png",
                     "name": "IMAGE_SPORT_MMA25",
+                    "storageFormat": "pbi",
                     "targetPlatforms": null,
                     "type": "bitmap"
                 },
                 {
                     "file": "images/tennis 16.png",
                     "name": "IMAGE_SPORT_TENNIS16",
+                    "storageFormat": "pbi",
                     "targetPlatforms": null,
                     "type": "bitmap"
                 },
                 {
                     "file": "images/tennis 25.png",
                     "name": "IMAGE_SPORT_TENNIS25",
+                    "storageFormat": "pbi",
                     "targetPlatforms": null,
                     "type": "bitmap"
                 }
@@ -233,5 +275,5 @@
             "watchface": false
         }
     },
-    "version": "9.0.1"
+    "version": "9.0.2"
 }

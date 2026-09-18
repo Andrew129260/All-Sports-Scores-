@@ -9,8 +9,43 @@ const DEBUG_MOCK = false;
  * Keep these limits synchronized with games-handler.c.
  */
 const MAX_GAMES_DEFAULT = 50;
-const MAX_GAMES_APLITE = 5;
+const MAX_GAMES_APLITE = 10;
 const MAX_GAMES_HIGH_MEMORY = 150;
+
+const LEAGUE_OFFSETS = {
+    "NFL": 1000000,
+    "NCAAF": 2000000,
+    "UFL": 3000000,
+    "CFL": 4000000,
+    "MLB": 5000000,
+    "NCAA Base": 6000000,
+    "WBC": 7000000,
+    "NHL": 8000000,
+    "NCAA Hockey": 9000000,
+    "NBA": 10000000,
+    "WNBA": 11000000,
+    "NCAAM": 12000000,
+    "FIBA Men": 13000000,
+    "FIBA Women": 14000000,
+    "MLS": 15000000,
+    "EPL": 16000000,
+    "La Liga": 17000000,
+    "Bundesliga": 18000000,
+    "Serie A": 19000000,
+    "Liga MX": 20000000,
+    "UEFA Champ": 21000000,
+    "World Cup": 22000000,
+    "NRL": 23000000,
+    "Six Nations": 24000000,
+    "Rugby WC": 25000000,
+    "International": 26000000,
+    "IPL": 27000000,
+    "MLC": 28000000,
+    "ATP": 29000000,
+    "WTA": 30000000,
+    "AFL": 31000000,
+    "UFC": 32000000
+};
 
 function getGames(sport, leagueIndex, onLoad, onError) {
     if (sport == models.sports.FAVORITES) {
@@ -109,9 +144,6 @@ function getFavoriteGames(favorites, onLoad, onError) {
 }
 
 function getEndpointsForSport(sport) {
-    /*
-     * Use site.api.espn.com.
-     */
     var base =
         "https://site.api.espn.com/apis/site/v2/sports";
 
@@ -348,18 +380,6 @@ function getGamesForSport(
         });
     });
 
-    /*
-     * IMPORTANT TEST:
-     *
-     * Do NOT send dates= or limit= to ESPN.
-     *
-     * The bare ESPN scoreboard endpoint is known to return
-     * data, while our previous rolling date-range requests
-     * were returning HTTP 400.
-     *
-     * Keep endpoint-specific parameters such as groups=80
-     * and groups=50.
-     */
     const queryParams = "";
 
     fetchTasks.forEach(task => {
@@ -400,10 +420,6 @@ function getGamesForSport(
             let req =
                 new XMLHttpRequest();
 
-            /*
-             * The only automatic query parameter is our cache
-             * buster. ESPN receives no dates= or limit=.
-             */
             const fullUrl =
                 task.url +
                 "/scoreboard?t=" +
@@ -897,28 +913,7 @@ function getGamesForSport(
             );
 
 
-            /*
-             * Local filtering remains exactly what we want.
-             *
-             * ESPN decides what its default scoreboard contains;
-             * we make sure old/far-future games don't reach the watch.
-             */
-            const nowTime =
-                new Date();
-
-
-            const futureLimit =
-                new Date(
-                    nowTime.getTime() +
-                    (
-                        14 *
-                        24 *
-                        60 *
-                        60 *
-                        1000
-                    )
-                );
-
+            const nowTime = new Date();
 
             const pastLimit =
                 new Date(
@@ -932,7 +927,6 @@ function getGamesForSport(
                     )
                 );
 
-
             let filteredGames =
                 uniqueGames.filter(
                     game => {
@@ -944,11 +938,18 @@ function getGamesForSport(
                         )
                     ) {
 
+                        let futureLookahead = 14 * 24 * 60 * 60 * 1000;
+                        if (game.sport == models.sports.TENNIS) {
+                            futureLookahead = 7 * 24 * 60 * 60 * 1000;
+                        }
+
+                        const gameFutureLimit = new Date(nowTime.getTime() + futureLookahead);
+
                         return (
                             game.startTime >=
                                 pastLimit &&
                             game.startTime <=
-                                futureLimit
+                                gameFutureLimit
                         );
                     }
 
@@ -1061,12 +1062,6 @@ function getGamesForSport(
     }
 
 
-    /*
-     * Keep your existing dynamic discovery mechanism for now.
-     *
-     * IMPORTANT:
-     * Its header request also has NO dates= parameter.
-     */
     if (
         leagueIndex === undefined ||
         leagueIndex === null ||
@@ -1136,10 +1131,6 @@ function getGamesForSport(
             let headerReq =
                 new XMLHttpRequest();
 
-
-            /*
-             * No dates parameter here either.
-             */
             let headerUrl =
                 'https://site.api.espn.com/apis/personalized/v2/scoreboard/header?sport=' +
                 encodeURIComponent(
@@ -1263,7 +1254,6 @@ function getGamesForSport(
                                             return;
                                         }
 
-                                        // FIX: Use the named slug if available to prevent 400 Errors
                                         let leagueIdentifier = league.slug || league.abbreviation || league.id;
 
                                         let dynamicUrl =
@@ -1866,18 +1856,16 @@ function parseEvent(
         }
     }
 
+    const offset = LEAGUE_OFFSETS[league] || 0;
 
-    const t1Id =
-        team1.id ||
-        competitor1.id ||
-        "0";
+    const rawT1Id = team1.id || competitor1.id || "0";
+    const rawT2Id = team2.id || competitor2.id || "0";
 
+    const parsedT1 = parseInt(rawT1Id, 10);
+    const parsedT2 = parseInt(rawT2Id, 10);
 
-    const t2Id =
-        team2.id ||
-        competitor2.id ||
-        "0";
-
+    const t1Id = String((isNaN(parsedT1) ? 0 : parsedT1) + offset);
+    const t2Id = String((isNaN(parsedT2) ? 0 : parsedT2) + offset);
 
     var gameObj =
         new models.Game(
@@ -2080,282 +2068,95 @@ function getTimelineIcon(
     }
 }
 
-function insertUserPin(
-    pin
-) {
-    if (
-        typeof Pebble !== 'undefined' &&
-        typeof Pebble.insertTimelinePin ===
-            'function'
-    ) {
-
-        Pebble.insertTimelinePin(
-            pin
-        );
-
-        console.log(
-            "Local pin insertion requested: " +
-            pin.id
-        );
-
-    } else {
-
-        var sendRequest =
-            function(token) {
-
-            var req =
-                new XMLHttpRequest();
-
-            req.open(
-                'PUT',
-                'https://timeline-api.getpebble.com/v1/user/pins/' +
-                encodeURIComponent(
-                    pin.id
-                ),
-                true
-            );
-
-            req.setRequestHeader(
-                'Content-Type',
-                'application/json'
-            );
-
-            req.setRequestHeader(
-                'X-User-Token',
-                '' + token
-            );
-
-            req.onload =
-                function() {
-
-                console.log(
-                    "Timeline API Response: " +
-                    req.status +
-                    " " +
-                    req.responseText
-                );
-            };
-
-            req.send(
-                JSON.stringify(pin)
-            );
-        };
-
-
-        if (
-            typeof Pebble !== 'undefined' &&
-            typeof Pebble.getTimelineToken ===
-                'function'
-        ) {
-
-            Pebble.getTimelineToken(
-
-                function(token) {
-                    sendRequest(
-                        token
-                    );
-                },
-
-                function(error) {
-
-                    console.log(
-                        'Failed to get timeline token (' +
-                        error +
-                        '), attempting offline local pin push anyway'
-                    );
-
-                    sendRequest(
-                        'offline-dummy-token'
-                    );
-                }
-            );
+function insertUserPin(pin) {
+    if (typeof Pebble !== 'undefined' && typeof Pebble.insertTimelinePin === 'function') {
+        try {
+            Pebble.insertTimelinePin(pin);
+            console.log("Local pin successfully pushed to OS: " + pin.id);
+        } catch (e) {
+            console.log("Error inserting local pin: " + e);
         }
+    } else {
+        console.log("Local insertTimelinePin not available on this platform.");
     }
 }
 
-function updateTimelinePins(
-    games
-) {
-    const now =
-        new Date();
-
-    const future72h =
-        new Date(
-            now.getTime() +
-            (
-                72 *
-                60 *
-                60 *
-                1000
-            )
-        );
+function updateTimelinePins(games) {
+    const now = new Date();
+    const future72h = new Date(now.getTime() + (72 * 60 * 60 * 1000));
+    const past12h = new Date(now.getTime() - (12 * 60 * 60 * 1000));
 
     let pushedPins = {};
-
     try {
-
-        let parsed =
-            JSON.parse(
-                localStorage.getItem(
-                    "pushed_pins"
-                )
-            );
-
-        if (
-            parsed &&
-            typeof parsed ===
-                'object' &&
-            !Array.isArray(parsed)
-        ) {
-
-            pushedPins =
-                parsed;
-
-        } else if (
-            Array.isArray(parsed)
-        ) {
-
-            parsed.forEach(
-                id => {
-                    pushedPins[id] =
-                        true;
-                }
-            );
+        let parsed = JSON.parse(localStorage.getItem("pushed_pins_v4"));
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            pushedPins = parsed;
         }
-
     } catch (e) {}
 
+    let pinsToPush = [];
 
-    games.forEach(
-        game => {
+    games.forEach(game => {
+        if (game.startTime && !isNaN(game.startTime.getTime())) {
+            
+            if (game.startTime > past12h && game.startTime < future72h) {
+                
+                const pinId = "game-" + game.sport + "-" + game.id;
+                const localTimeISO = game.startTime.toISOString();
 
-        if (
-            game.startTime &&
-            !isNaN(
-                game.startTime.getTime()
-            )
-        ) {
-
-            if (
-                game.startTime > now &&
-                game.startTime < future72h
-            ) {
-
-                const pinId =
-                    "game-" +
-                    game.id;
-
-                const localTimeISO =
-                    game.startTime
-                        .toISOString();
-
-
-                if (
-                    pushedPins[pinId] ===
-                    localTimeISO
-                ) {
-                    return;
+                if (pushedPins[pinId] === localTimeISO) {
+                    return; 
                 }
 
-
-                let bodyText =
-                    "Starts at: " +
-                    game.time +
-                    " (" +
-                    game.details +
-                    ")";
-
-
+                let bodyText = "Starts at: " + game.time + " (" + game.details + ")";
                 if (game.broadcast) {
-                    bodyText +=
-                        "\nWatch on: " +
-                        game.broadcast;
+                    bodyText += "\nWatch on: " + game.broadcast;
                 }
-
 
                 var pin = {
-                    "id":
-                        pinId,
-
-                    "time":
-                        localTimeISO,
-
-                    "duration":
-                        180,
-
+                    "id": pinId,
+                    "time": localTimeISO,
+                    "duration": 180,
                     "layout": {
-                        "type":
-                            "genericPin",
-
-                        "title":
-                            game.team1.name +
-                            " vs " +
-                            game.team2.name,
-
-                        "subtitle":
-                            "Get ready for the game!",
-
-                        "body":
-                            bodyText,
-
-                        "tinyIcon":
-                            getTimelineIcon(
-                                game.sport
-                            ),
-
-                        "largeIcon":
-                            getTimelineIcon(
-                                game.sport
-                            )
+                        "type": "genericPin",
+                        "title": game.team1.name + " vs " + game.team2.name,
+                        "subtitle": "Get ready for the game!",
+                        "body": bodyText,
+                        "tinyIcon": getTimelineIcon(game.sport),
+                        "largeIcon": getTimelineIcon(game.sport)
                     }
                 };
 
-
-                insertUserPin(
-                    pin
-                );
-
-                pushedPins[pinId] =
-                    localTimeISO;
+                pinsToPush.push({ pin: pin, iso: localTimeISO });
             }
         }
     });
 
+    if (pinsToPush.length === 0) return;
 
-    let keys =
-        Object.keys(
-            pushedPins
-        );
-
-
-    if (
-        keys.length > 100
-    ) {
-
-        let newPushedPins = {};
-
-        keys.slice(-100).forEach(
-            k => {
-                newPushedPins[k] =
-                    pushedPins[k];
+    let index = 0;
+    let syncInterval = setInterval(function() {
+        if (index >= pinsToPush.length) {
+            clearInterval(syncInterval);
+            
+            let keys = Object.keys(pushedPins);
+            if (keys.length > 100) {
+                let newPushedPins = {};
+                keys.slice(-100).forEach(k => { newPushedPins[k] = pushedPins[k]; });
+                pushedPins = newPushedPins;
             }
-        );
+            localStorage.setItem("pushed_pins_v4", JSON.stringify(pushedPins));
+            console.log("Timeline background sync complete.");
+            return;
+        }
 
-        pushedPins =
-            newPushedPins;
-    }
-
-
-    localStorage.setItem(
-        "pushed_pins",
-        JSON.stringify(
-            pushedPins
-        )
-    );
+        let item = pinsToPush[index];
+        insertUserPin(item.pin); 
+        pushedPins[item.pin.id] = item.iso; 
+        
+        index++;
+    }, 1000); 
 }
 
-module.exports.getGames =
-    getGames;
-
-module.exports.getGame =
-    getGame;
+module.exports.getGames = getGames;
+module.exports.getGame = getGame;

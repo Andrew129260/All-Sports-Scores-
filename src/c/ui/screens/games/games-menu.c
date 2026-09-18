@@ -100,12 +100,14 @@ static void on_games_error(AppError error) {
 }
 
 static void refresh_games(Sport sport) {
+    s_pending_game = NULL; // PATCH: Clear stale pointer before the array is freed
     refreshing = true;
     game_count = 0;
     if (s_menu_layer != NULL) { menu_layer_reload_data(s_menu_layer); }
     clear_temporary_ui(); 
     
     Layer *window_layer = window_get_root_layer(gamesWindow);
+    
     GRect bounds = layer_get_frame(window_layer);
     GRect loading_section_bounds = bounds;
     loading_section_bounds.origin.y += bounds.size.h / 2 - 16;
@@ -366,6 +368,18 @@ static void destroy_ui(Window *window) {
     #endif
 }
 
+static void window_appear(Window *window) {
+    #if defined(PBL_PLATFORM_APLITE)
+    build_menu_layer(window);
+    #endif
+}
+
+static void window_disappear(Window *window) {
+    #if defined(PBL_PLATFORM_APLITE)
+    destroy_menu_layer();
+    #endif
+}
+
 static void window_load(Window *window) { initialise_ui(window); }
 static void window_unload(Window *window) { destroy_ui(window); }
 
@@ -378,7 +392,12 @@ void show_games_menu(Sport sport, int league_index) {
     s_sport = sport;
     if (!gamesWindow) {
         gamesWindow = window_create();
-        window_set_window_handlers(gamesWindow, (WindowHandlers){ .load = window_load, .unload = window_unload });
+        window_set_window_handlers(gamesWindow, (WindowHandlers){
+            .load = window_load, 
+            .unload = window_unload,
+            .appear = window_appear,
+            .disappear = window_disappear
+        });
     }
     if (window_stack_get_top_window() != gamesWindow) {
         window_stack_push(gamesWindow, true);
