@@ -8,7 +8,7 @@ static int games_count = 0;
 static int expected_games = 0;
 
 #if defined(PBL_PLATFORM_APLITE)
-    #define MAX_GAMES 10
+    #define MAX_GAMES 5
 #elif defined(PBL_PLATFORM_EMERY) || defined(PBL_PLATFORM_GABBRO)
     #define MAX_GAMES 150
 #else

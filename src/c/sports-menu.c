@@ -22,6 +22,18 @@ static int16_t menu_get_row_height_callback(MenuLayer *menu_layer, MenuIndex *ce
     return PBL_IF_ROUND_ELSE(60, 44);
 }
 
+static int16_t menu_get_header_height_callback(MenuLayer *menu_layer, uint16_t section_index, void *data) {
+    return PBL_IF_ROUND_ELSE(32, 0); 
+}
+
+static void menu_draw_header_callback(GContext* ctx, const Layer *cell_layer, uint16_t section_index, void *data) {
+    #if defined(PBL_ROUND)
+    GRect bounds = layer_get_bounds(cell_layer);
+    graphics_context_set_text_color(ctx, GColorDukeBlue);
+    graphics_draw_text(ctx, "All Sports", fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD), bounds, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
+    #endif
+}
+
 static void menu_draw_row_callback(GContext* ctx, const Layer *cell_layer, MenuIndex *cell_index, void *data) {
     Sport sport = (Sport)cell_index->row;
     GBitmap *icon = image_cache_get_sport_icon(sport);
@@ -43,14 +55,26 @@ static void build_menu_layer(Window *window) {
     Layer *window_layer = window_get_root_layer(window);
     GRect bounds = layer_get_frame(window_layer);
     
-    int header_height = PBL_IF_RECT_ELSE(layer_get_bounds(s_header).size.h, 8);
+    #if defined(PBL_ROUND)
+    bounds.origin.y += STATUS_BAR_LAYER_HEIGHT;
+    bounds.size.h -= STATUS_BAR_LAYER_HEIGHT;
+    #else
+    int header_height = layer_get_bounds((Layer*)s_header).size.h;
     bounds.origin.y += header_height + 4;
     bounds.size.h -= header_height + 4; 
+    #endif
 
     s_menu_layer = menu_layer_create(bounds);
+
+    #if defined(PBL_ROUND)
+    menu_layer_set_center_focused(s_menu_layer, false);
+    #endif
+
     menu_layer_set_callbacks(s_menu_layer, NULL, (MenuLayerCallbacks){
         .get_num_rows = menu_get_num_rows_callback,
         .get_cell_height = menu_get_row_height_callback,
+        .get_header_height = menu_get_header_height_callback,
+        .draw_header = menu_draw_header_callback,
         .draw_row = menu_draw_row_callback,
         .select_click = menu_select_callback,
     });
@@ -75,17 +99,19 @@ static void destroy_menu_layer(void) {
 
 static void initialise_ui(Window *window) {
     Layer *window_layer = window_get_root_layer(window);
-    GRect bounds = layer_get_frame(window_layer);
     
     s_status_bar = status_bar_layer_create();
     status_bar_layer_set_colors(s_status_bar, GColorDukeBlue, GColorWhite);
 
+    #if !defined(PBL_ROUND)
+    GRect bounds = layer_get_frame(window_layer);
     s_header = create_header_layer(bounds, (HeaderData) {
         .title = "All Sports",
         .under_status_bar = true,
     });
+    layer_add_child(window_layer, (Layer*)s_header);
+    #endif
     
-    layer_add_child(window_layer, s_header);
     layer_add_child(window_layer, status_bar_layer_get_layer(s_status_bar));
 
     build_menu_layer(window);
@@ -94,7 +120,9 @@ static void initialise_ui(Window *window) {
 static void destroy_ui(Window *window) {
     destroy_menu_layer();
     if (s_status_bar) { status_bar_layer_destroy(s_status_bar); s_status_bar = NULL; }
-    if (s_header) { layer_destroy(s_header); s_header = NULL; }
+    #if !defined(PBL_ROUND)
+    if (s_header) { layer_destroy((Layer*)s_header); s_header = NULL; }
+    #endif
 }
 
 static void window_appear(Window *window) {

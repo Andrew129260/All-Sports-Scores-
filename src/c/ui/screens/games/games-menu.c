@@ -1,4 +1,5 @@
 #include <stdbool.h>
+#include <stdio.h>
 #include "pebble.h"
 #include "../../../image-cache.h"
 #include "games-menu.h"
@@ -37,6 +38,7 @@ static Game *s_pending_game = NULL;
 
 static void build_menu_layer(Window *window);
 static void destroy_menu_layer();
+static void refresh_games(Sport sport);
 
 static void clear_temporary_ui() {
     if (s_error_layer) {
@@ -100,7 +102,7 @@ static void on_games_error(AppError error) {
 }
 
 static void refresh_games(Sport sport) {
-    s_pending_game = NULL; // PATCH: Clear stale pointer before the array is freed
+    s_pending_game = NULL;
     refreshing = true;
     game_count = 0;
     if (s_menu_layer != NULL) { menu_layer_reload_data(s_menu_layer); }
@@ -133,13 +135,8 @@ static void refresh_games(Sport sport) {
         text_layer_set_font(s_loading_text, fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD));
         text_layer_set_text_alignment(s_loading_text, GTextAlignmentCenter);
         
-        #if defined(PBL_PLATFORM_APLITE)
-            if (s_sport == 0) text_layer_set_text(s_loading_text, "Loading favorites");
-            else text_layer_set_text(s_loading_text, "Loading top 5 games");
-        #else
-            if (s_sport == 0) text_layer_set_text(s_loading_text, "Loading favorites");
-            else text_layer_set_text(s_loading_text, "Loading all games");
-        #endif
+        if (s_sport == 0) text_layer_set_text(s_loading_text, "Loading favorites");
+        else text_layer_set_text(s_loading_text, "Loading games");
 
         layer_add_child(window_layer, text_layer_get_layer(s_loading_text));
     }
@@ -153,13 +150,22 @@ static uint16_t menu_get_num_rows_callback(MenuLayer *menu_layer, uint16_t secti
 }
 
 static int16_t menu_get_row_height_callback (MenuLayer *menu_layer, MenuIndex *cell_index, void *callback_context) {
-    #if defined(PBL_RECT)
-        return 58;
-    #elif defined(PBL_ROUND)
-        bool selected = menu_layer_get_selected_index(s_menu_layer).row == cell_index->row;
-        return selected ? 66 : 26;
+    return PBL_IF_ROUND_ELSE(66, 58);
+}
+
+static int16_t menu_get_header_height_callback(MenuLayer *menu_layer, uint16_t section_index, void *data) {
+    return PBL_IF_ROUND_ELSE(32, 0); 
+}
+
+static void menu_draw_header_callback(GContext* ctx, const Layer *cell_layer, uint16_t section_index, void *data) {
+    #if defined(PBL_ROUND)
+    GRect bounds = layer_get_bounds(cell_layer);
+    graphics_context_set_text_color(ctx, GColorDukeBlue);
+    
+    const char *title = (s_sport == Favorites) ? "Favorites" : sport_get_name(s_sport);
+    graphics_draw_text(ctx, title, fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD), bounds, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
     #endif
-} 
+}
 
 static void menu_cell_game_large_draw(GContext* ctx, const Layer *cell_layer, bool selected, const Game *game) {
     GFont font_bold = fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
@@ -214,27 +220,14 @@ static void menu_cell_game_large_draw(GContext* ctx, const Layer *cell_layer, bo
     }
 }
 
-#if defined(PBL_ROUND)
-static void menu_cell_game_small_draw(GContext* ctx, const Layer *cell_layer, const Game *game) {
-    const char *summary = game->summary ? game->summary : "";
-    graphics_draw_text(ctx, summary, fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD), layer_get_bounds(cell_layer), GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
-}
-#endif
-
 static void menu_draw_row_callback(GContext* ctx, const Layer *cell_layer, MenuIndex *cell_index, void *data) {
     if (s_menu_layer == NULL) return;
     if (cell_index->row >= game_count || games == NULL) return;
-    bool selected = menu_layer_get_selected_index(s_menu_layer).row == cell_index->row;
+    
+    bool selected = menu_layer_is_index_selected(s_menu_layer, cell_index);
 
-    #if defined(PBL_RECT)
-        menu_cell_game_large_draw(ctx, cell_layer, selected, &games[cell_index->row]);
-    #elif defined(PBL_ROUND)
-        if (selected) {
-            menu_cell_game_large_draw(ctx, cell_layer, selected, &games[cell_index->row]);
-        } else {
-            menu_cell_game_small_draw(ctx, cell_layer, &games[cell_index->row]);
-        }
-    #endif
+    // Draw the full, detailed layout for ALL rows on ALL platforms
+    menu_cell_game_large_draw(ctx, cell_layer, selected, &games[cell_index->row]);
 }
 
 static void push_score_screen_callback(void *data) {
@@ -259,13 +252,6 @@ static void menu_select_callback(MenuLayer *menu_layer, MenuIndex *cell_index, v
 }
 
 static void menu_selection_changed_callback(MenuLayer *menu_layer, MenuIndex new_index, MenuIndex old_index, void *callback_context) {
-    if (new_index.row == 0 && old_index.row != 0) {
-        if (s_status_bar) layer_set_hidden(status_bar_layer_get_layer(s_status_bar), false);
-        if (s_header) layer_set_hidden((Layer*)s_header, false);
-    } else if (new_index.row != 0 && old_index.row == 0) { 
-        if (s_status_bar) layer_set_hidden(status_bar_layer_get_layer(s_status_bar), true);
-        if (s_header) layer_set_hidden((Layer*)s_header, true);
-    }
     #if defined(PBL_ROUND)
     if (s_content_indicator) {
         content_indicator_set_content_available(s_content_indicator, ContentIndicatorDirectionDown, new_index.row < game_count - 2);
@@ -277,15 +263,27 @@ static void build_menu_layer(Window *window) {
     if (s_menu_layer) return;
     Layer *window_layer = window_get_root_layer(window);
     GRect menu_bounds = layer_get_frame(window_layer);
-    int header_height = PBL_IF_RECT_ELSE(layer_get_bounds((Layer*)s_header).size.h, 8);
     
+    #if defined(PBL_ROUND)
+    menu_bounds.origin.y += STATUS_BAR_LAYER_HEIGHT;
+    menu_bounds.size.h -= STATUS_BAR_LAYER_HEIGHT;
+    #else
+    int header_height = layer_get_bounds((Layer*)s_header).size.h;
     menu_bounds.origin.y += header_height + 4;
     menu_bounds.size.h -= header_height + 4;
+    #endif
 
     s_menu_layer = menu_layer_create(menu_bounds);
+
+    #if defined(PBL_ROUND)
+    menu_layer_set_center_focused(s_menu_layer, false);
+    #endif
+
     menu_layer_set_callbacks(s_menu_layer, NULL, (MenuLayerCallbacks){
         .get_num_rows = menu_get_num_rows_callback,
         .get_cell_height = menu_get_row_height_callback,
+        .get_header_height = menu_get_header_height_callback,
+        .draw_header = menu_draw_header_callback,
         .draw_row = menu_draw_row_callback,
         .select_click = menu_select_callback,
         .selection_changed = menu_selection_changed_callback,
@@ -311,45 +309,22 @@ static void destroy_menu_layer() {
 
 static void initialise_ui(Window *window) {
     Layer *window_layer = window_get_root_layer(window);
-    GRect full_bounds = layer_get_frame(window_layer);
+    
     s_status_bar = status_bar_layer_create();
     status_bar_layer_set_colors(s_status_bar, GColorDukeBlue, GColorWhite);
 
-    #if defined(PBL_PLATFORM_APLITE)
-        s_header_data.icon = NULL; 
-    #else
-        s_header_data.icon = image_cache_get_sport_icon(s_sport);
-    #endif
-
+    #if !defined(PBL_ROUND)
+    GRect bounds = layer_get_frame(window_layer);
     s_header_data.title = sport_get_name(s_sport);
     s_header_data.info = NULL;
     s_header_data.under_status_bar = true;
-
-    GRect header_bounds = full_bounds;
-    header_bounds.size.h = 32; 
-    s_header = create_header_layer(header_bounds, s_header_data);
-
+    s_header = create_header_layer(bounds, s_header_data);
     layer_add_child(window_layer, (Layer*)s_header);
+    #endif
+    
     layer_add_child(window_layer, status_bar_layer_get_layer(s_status_bar));
 
     build_menu_layer(window);
-
-    #if defined(PBL_ROUND)
-    s_content_indicator = content_indicator_create();
-    s_indicator_layer = layer_create(GRect(0, full_bounds.size.h - STATUS_BAR_LAYER_HEIGHT, full_bounds.size.w, STATUS_BAR_LAYER_HEIGHT));
-    const ContentIndicatorConfig down_config = (ContentIndicatorConfig) {
-        .layer = s_indicator_layer,
-        .times_out = false,
-        .alignment = GAlignCenter,
-        .colors = {
-            .foreground = GColorBlack,
-            .background = GColorWhite
-        }
-    };
-    content_indicator_configure_direction(s_content_indicator, ContentIndicatorDirectionDown, &down_config);
-    layer_add_child(window_layer, s_indicator_layer);
-    #endif
-
     refresh_games(s_sport);
 }
 
@@ -361,7 +336,9 @@ static void destroy_ui(Window *window) {
     destroy_menu_layer();
     clear_temporary_ui();
     if(s_status_bar) { status_bar_layer_destroy(s_status_bar); s_status_bar = NULL; }
+    #if !defined(PBL_ROUND)
     if(s_header) { layer_destroy((Layer*)s_header); s_header = NULL; }
+    #endif
     #if defined(PBL_ROUND)
     if(s_indicator_layer) { layer_destroy(s_indicator_layer); s_indicator_layer = NULL; }
     if(s_content_indicator) { content_indicator_destroy(s_content_indicator); s_content_indicator = NULL; }
@@ -404,4 +381,10 @@ void show_games_menu(Sport sport, int league_index) {
     }
 }
 
-void hide_games_menu(void) { window_stack_remove(gamesWindow, true); }
+void hide_games_menu(void) { 
+    if (gamesWindow) {
+        window_stack_remove(gamesWindow, true);
+        window_destroy(gamesWindow);
+        gamesWindow = NULL;
+    }
+}

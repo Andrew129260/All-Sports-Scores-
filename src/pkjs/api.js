@@ -9,7 +9,7 @@ const DEBUG_MOCK = false;
  * Keep these limits synchronized with games-handler.c.
  */
 const MAX_GAMES_DEFAULT = 50;
-const MAX_GAMES_APLITE = 10;
+const MAX_GAMES_APLITE = 5;
 const MAX_GAMES_HIGH_MEMORY = 150;
 
 const LEAGUE_OFFSETS = {
@@ -46,6 +46,9 @@ const LEAGUE_OFFSETS = {
     "AFL": 31000000,
     "UFC": 32000000
 };
+
+// Module-level lock to prevent overlapping timeline sync loops
+let s_timeline_sync_timer = null;
 
 function getGames(sport, leagueIndex, onLoad, onError) {
     if (sport == models.sports.FAVORITES) {
@@ -919,7 +922,7 @@ function getGamesForSport(
                 new Date(
                     nowTime.getTime() -
                     (
-                        14 *
+                        7 *
                         24 *
                         60 *
                         60 *
@@ -2082,6 +2085,11 @@ function insertUserPin(pin) {
 }
 
 function updateTimelinePins(games) {
+    if (s_timeline_sync_timer) {
+        clearInterval(s_timeline_sync_timer);
+        s_timeline_sync_timer = null;
+    }
+
     const now = new Date();
     const future72h = new Date(now.getTime() + (72 * 60 * 60 * 1000));
     const past12h = new Date(now.getTime() - (12 * 60 * 60 * 1000));
@@ -2135,9 +2143,10 @@ function updateTimelinePins(games) {
     if (pinsToPush.length === 0) return;
 
     let index = 0;
-    let syncInterval = setInterval(function() {
+    s_timeline_sync_timer = setInterval(function() {
         if (index >= pinsToPush.length) {
-            clearInterval(syncInterval);
+            clearInterval(s_timeline_sync_timer);
+            s_timeline_sync_timer = null;
             
             let keys = Object.keys(pushedPins);
             if (keys.length > 100) {
@@ -2145,7 +2154,10 @@ function updateTimelinePins(games) {
                 keys.slice(-100).forEach(k => { newPushedPins[k] = pushedPins[k]; });
                 pushedPins = newPushedPins;
             }
-            localStorage.setItem("pushed_pins_v4", JSON.stringify(pushedPins));
+            try {
+                localStorage.setItem("pushed_pins_v4", JSON.stringify(pushedPins));
+            } catch (e) {}
+            
             console.log("Timeline background sync complete.");
             return;
         }
