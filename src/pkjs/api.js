@@ -25,8 +25,7 @@ const LEAGUE_OFFSETS = {
     "NBA": 10000000,
     "WNBA": 11000000,
     "NCAAM": 12000000,
-    "FIBA Men": 13000000,
-    "FIBA Women": 14000000,
+    "FIBA": 13000000,
     "MLS": 15000000,
     "EPL": 16000000,
     "La Liga": 17000000,
@@ -44,7 +43,8 @@ const LEAGUE_OFFSETS = {
     "ATP": 29000000,
     "WTA": 30000000,
     "AFL": 31000000,
-    "UFC": 32000000
+    "UFC": 32000000,
+    "Women's WC": 33000000
 };
 
 // Module-level lock to prevent overlapping timeline sync loops
@@ -80,10 +80,29 @@ function getFavoriteGames(favorites, onLoad, onError) {
 
     Object.values(sportGroups).forEach((sportGroup) => {
         const sport = sportGroup[0].sport;
-        const teamIDs =
+
+        const rawTeamIDs =
             sportGroup.map(
                 favoriteItem => favoriteItem.teamID
             );
+
+        // Safely migrate legacy FIBA Women IDs (14 million range)
+        // to the unified FIBA offset (13 million range)
+        const teamIDs = rawTeamIDs.map(id => {
+            const parsedId = parseInt(id, 10);
+
+            if (
+                !isNaN(parsedId) &&
+                parsedId >= 14000000 &&
+                parsedId < 15000000
+            ) {
+                return String(
+                    parsedId - 1000000
+                );
+            }
+
+            return id;
+        });
 
         getGamesForSport(
             sport,
@@ -112,6 +131,7 @@ function getFavoriteGames(favorites, onLoad, onError) {
                         updateTimelinePins(
                             favoriteGames
                         );
+
                         onLoad(
                             favoriteGames
                         );
@@ -130,10 +150,13 @@ function getFavoriteGames(favorites, onLoad, onError) {
                         s => loadedSports.includes(s)
                     )
                 ) {
-                    if (favoriteGames.length > 0) {
+                    if (
+                        favoriteGames.length > 0
+                    ) {
                         updateTimelinePins(
                             favoriteGames
                         );
+
                         onLoad(
                             favoriteGames
                         );
@@ -141,7 +164,8 @@ function getFavoriteGames(favorites, onLoad, onError) {
                         onError();
                     }
                 }
-            }
+            },
+            teamIDs
         );
     });
 }
@@ -218,11 +242,7 @@ function getEndpointsForSport(sport) {
                 },
                 {
                     url: base + '/basketball/fiba',
-                    league: "FIBA Men"
-                },
-                {
-                    url: base + '/basketball/fiba',
-                    league: "FIBA Women"
+                    league: "FIBA"
                 }
             ];
 
@@ -259,6 +279,10 @@ function getEndpointsForSport(sport) {
                 {
                     url: base + '/soccer/fifa.world',
                     league: "World Cup"
+                },
+                {
+                    url: base + '/soccer/fifa.wwc',
+                    league: "Women's WC"
                 }
             ];
 
@@ -334,7 +358,8 @@ function getGamesForSport(
     sport,
     leagueIndex,
     onLoad,
-    onError
+    onError,
+    favoriteTeamIDs
 ) {
     if (DEBUG_MOCK) {
         onLoad(mock.nfl);
@@ -349,7 +374,9 @@ function getGamesForSport(
     let hasCriticalError = false;
     let hasLoaded = false;
 
-    if (endpoints.length === 0) {
+    if (
+        endpoints.length === 0
+    ) {
         onError();
         return;
     }
@@ -390,16 +417,28 @@ function getGamesForSport(
     });
 
     function finishSuccess(games) {
-        if (hasLoaded) return;
+        if (
+            hasLoaded
+        ) {
+            return;
+        }
 
         hasLoaded = true;
-        onLoad(games);
+
+        onLoad(
+            games
+        );
     }
 
     function finishError() {
-        if (hasLoaded) return;
+        if (
+            hasLoaded
+        ) {
+            return;
+        }
 
         hasLoaded = true;
+
         onError();
     }
 
@@ -411,12 +450,17 @@ function getGamesForSport(
 
         function runNext() {
 
-            if (taskIndex >= fetchTasks.length) {
+            if (
+                taskIndex >=
+                fetchTasks.length
+            ) {
                 return;
             }
 
             let task =
-                fetchTasks[taskIndex++];
+                fetchTasks[
+                    taskIndex++
+                ];
 
             activeRequests++;
 
@@ -439,13 +483,15 @@ function getGamesForSport(
                 fullUrl
             );
 
-            let isTimeout = false;
+            let isTimeout =
+                false;
 
             let watchdog =
                 setTimeout(
                     function() {
 
-                        isTimeout = true;
+                        isTimeout =
+                            true;
 
                         console.log(
                             "XHR Watchdog Timeout for: " +
@@ -469,11 +515,12 @@ function getGamesForSport(
                     10000
                 );
 
-
             req.onload =
                 function() {
 
-                    if (isTimeout) {
+                    if (
+                        isTimeout
+                    ) {
                         return;
                     }
 
@@ -482,11 +529,11 @@ function getGamesForSport(
                     );
 
                     if (
-                        req.readyState != 4
+                        req.readyState !=
+                        4
                     ) {
                         return;
                     }
-
 
                     console.log(
                         "[ESPN RESPONSE] " +
@@ -495,9 +542,9 @@ function getGamesForSport(
                         task.league
                     );
 
-
                     if (
-                        req.status == 200
+                        req.status ==
+                        200
                     ) {
 
                         try {
@@ -507,14 +554,12 @@ function getGamesForSport(
                                     req.responseText
                                 );
 
-
                             if (
                                 sportsData.events
                             ) {
 
                                 let allParsedEvents =
                                     [];
-
 
                                 const processCompetition =
                                     (
@@ -528,7 +573,6 @@ function getGamesForSport(
                                             ? comp.status.type.name
                                             : "";
 
-
                                     let shortDetail =
                                         comp.status &&
                                         comp.status.type
@@ -537,7 +581,6 @@ function getGamesForSport(
                                                 ""
                                               )
                                             : "";
-
 
                                     let p1 =
                                         comp.competitors &&
@@ -548,7 +591,6 @@ function getGamesForSport(
                                               )
                                             : null;
 
-
                                     let p2 =
                                         comp.competitors &&
                                         comp.competitors.length > 0
@@ -557,7 +599,6 @@ function getGamesForSport(
                                                 comp.competitors[0].team
                                               )
                                             : null;
-
 
                                     let name1 =
                                         p1
@@ -568,7 +609,6 @@ function getGamesForSport(
                                               )
                                             : "TBD";
 
-
                                     let name2 =
                                         p2
                                             ? (
@@ -578,7 +618,6 @@ function getGamesForSport(
                                               )
                                             : "TBD";
 
-
                                     if (
                                         status ===
                                             "STATUS_RETIRED" ||
@@ -587,7 +626,6 @@ function getGamesForSport(
                                     ) {
                                         return;
                                     }
-
 
                                     if (
                                         shortDetail.indexOf(
@@ -600,14 +638,12 @@ function getGamesForSport(
                                         return;
                                     }
 
-
                                     if (
                                         name1 === "TBD" &&
                                         name2 === "TBD"
                                     ) {
                                         return;
                                     }
-
 
                                     allParsedEvents.push({
                                         id:
@@ -625,7 +661,6 @@ function getGamesForSport(
                                         ]
                                     });
                                 };
-
 
                                 sportsData.events.forEach(
                                     event => {
@@ -665,7 +700,6 @@ function getGamesForSport(
                                     }
                                 });
 
-
                                 let games =
                                     allParsedEvents
                                         .map(
@@ -680,12 +714,10 @@ function getGamesForSport(
                                             g => g !== null
                                         );
 
-
                                 allGames =
                                     allGames.concat(
                                         games
                                     );
-
 
                                 allParsedEvents =
                                     null;
@@ -696,7 +728,6 @@ function getGamesForSport(
                                 games =
                                     null;
                             }
-
 
                         } catch (e) {
 
@@ -709,7 +740,8 @@ function getGamesForSport(
                         }
 
                     } else if (
-                        req.status != 404
+                        req.status !=
+                        404
                     ) {
 
                         hasCriticalError =
@@ -723,7 +755,6 @@ function getGamesForSport(
                         );
                     }
 
-
                     completedRequests++;
                     activeRequests--;
 
@@ -731,11 +762,12 @@ function getGamesForSport(
                     runNext();
                 };
 
-
             req.onerror =
                 function() {
 
-                    if (isTimeout) {
+                    if (
+                        isTimeout
+                    ) {
                         return;
                     }
 
@@ -758,10 +790,8 @@ function getGamesForSport(
                     runNext();
                 };
 
-
             req.send();
         }
-
 
         for (
             let i = 0;
@@ -773,7 +803,6 @@ function getGamesForSport(
         }
     }
 
-
     function checkCompletion() {
 
         if (
@@ -783,10 +812,11 @@ function getGamesForSport(
             return;
         }
 
-        if (hasLoaded) {
+        if (
+            hasLoaded
+        ) {
             return;
         }
-
 
         console.log(
             "[ESPN COMPLETE] Requests: " +
@@ -795,14 +825,12 @@ function getGamesForSport(
             allGames.length
         );
 
-
         if (
             allGames.length > 0
         ) {
 
             const seenIds =
                 new Set();
-
 
             const uniqueGames =
                 allGames.filter(
@@ -823,7 +851,6 @@ function getGamesForSport(
                     return true;
                 });
 
-
             uniqueGames.sort(
                 (a, b) => {
 
@@ -841,7 +868,6 @@ function getGamesForSport(
                                         "final"
                                     ) > -1
                             );
-
 
                         let isScheduled =
                             game.time &&
@@ -869,7 +895,6 @@ function getGamesForSport(
                                         "scheduled"
                             );
 
-
                         if (
                             !isFinal &&
                             !isScheduled &&
@@ -881,13 +906,11 @@ function getGamesForSport(
                         return 1;
                     };
 
-
                     const weightA =
                         getWeight(a);
 
                     const weightB =
                         getWeight(b);
-
 
                     if (
                         weightA !==
@@ -899,7 +922,6 @@ function getGamesForSport(
                         );
                     }
 
-
                     if (
                         a.startTime &&
                         b.startTime
@@ -910,13 +932,12 @@ function getGamesForSport(
                         );
                     }
 
-
                     return 0;
                 }
             );
 
-
-            const nowTime = new Date();
+            const nowTime =
+                new Date();
 
             const pastLimit =
                 new Date(
@@ -941,12 +962,30 @@ function getGamesForSport(
                         )
                     ) {
 
-                        let futureLookahead = 14 * 24 * 60 * 60 * 1000;
-                        if (game.sport == models.sports.TENNIS) {
-                            futureLookahead = 7 * 24 * 60 * 60 * 1000;
+                        let futureLookahead =
+                            14 *
+                            24 *
+                            60 *
+                            60 *
+                            1000;
+
+                        if (
+                            game.sport ==
+                            models.sports.TENNIS
+                        ) {
+                            futureLookahead =
+                                7 *
+                                24 *
+                                60 *
+                                60 *
+                                1000;
                         }
 
-                        const gameFutureLimit = new Date(nowTime.getTime() + futureLookahead);
+                        const gameFutureLimit =
+                            new Date(
+                                nowTime.getTime() +
+                                futureLookahead
+                            );
 
                         return (
                             game.startTime >=
@@ -959,10 +998,23 @@ function getGamesForSport(
                     return true;
                 });
 
+            // Favorites must be filtered before the watch payload cap.
+            // Otherwise Aplite could keep only the first 5 games and miss
+            // a favorited team whose game appears later in a large slate.
+            if (
+                favoriteTeamIDs &&
+                favoriteTeamIDs.length > 0
+            ) {
+                filteredGames =
+                    filteredGames.filter(
+                        game =>
+                            favoriteTeamIDs.includes(game.team1.id) ||
+                            favoriteTeamIDs.includes(game.team2.id)
+                    );
+            }
 
             let maxGames =
                 MAX_GAMES_DEFAULT;
-
 
             if (
                 typeof Pebble !== 'undefined' &&
@@ -973,15 +1025,15 @@ function getGamesForSport(
                 let watchInfo =
                     Pebble.getActiveWatchInfo();
 
-
-                if (watchInfo) {
+                if (
+                    watchInfo
+                ) {
 
                     const platform =
                         String(
                             watchInfo.platform ||
                             ""
                         ).toLowerCase();
-
 
                     if (
                         platform ===
@@ -1004,7 +1056,6 @@ function getGamesForSport(
                 }
             }
 
-
             if (
                 filteredGames.length >
                 maxGames
@@ -1016,7 +1067,6 @@ function getGamesForSport(
                     " games."
                 );
 
-
                 filteredGames =
                     filteredGames.slice(
                         0,
@@ -1024,18 +1074,15 @@ function getGamesForSport(
                     );
             }
 
-
             console.log(
                 "[ESPN SUCCESS] Returning " +
                 filteredGames.length +
                 " games."
             );
 
-
             finishSuccess(
                 filteredGames
             );
-
 
         } else if (
             hasCriticalError
@@ -1046,9 +1093,7 @@ function getGamesForSport(
                 "No games and at least one request failed."
             );
 
-
             finishError();
-
 
         } else {
 
@@ -1057,28 +1102,39 @@ function getGamesForSport(
                 "No games returned."
             );
 
-
             finishSuccess(
                 []
             );
         }
     }
 
+    let allowDiscovery =
+        false;
+
+    // Global/Favorites loading may use discovery.
+    if (
+        leagueIndex == null
+    ) {
+        allowDiscovery =
+            true;
+    }
+    // Cricket International is folder 0 and needs active-series discovery.
+    else if (
+        leagueIndex == 0 &&
+        sport == models.sports.CRICKET
+    ) {
+        allowDiscovery =
+            true;
+    }
 
     if (
-        leagueIndex === undefined ||
-        leagueIndex === null ||
-        leagueIndex === 0
+        allowDiscovery
     ) {
 
-        let sportString = "";
+        let sportString =
+            "";
 
         switch (sport) {
-
-            case models.sports.NFL:
-                sportString =
-                    "football";
-                break;
 
             case models.sports.MLB:
                 sportString =
@@ -1088,11 +1144,6 @@ function getGamesForSport(
             case models.sports.NHL:
                 sportString =
                     "hockey";
-                break;
-
-            case models.sports.NBA:
-                sportString =
-                    "basketball";
                 break;
 
             case models.sports.MLS:
@@ -1110,263 +1161,311 @@ function getGamesForSport(
                     "cricket";
                 break;
 
-            case models.sports.AFL:
-                sportString =
-                    "australian-football";
-                break;
-
-            case models.sports.MMA:
-                sportString =
-                    "mma";
-                break;
-
             case models.sports.TENNIS:
                 sportString =
                     "tennis";
                 break;
+
+            default:
+                sportString =
+                    "";
+                break;
         }
 
-
         if (
-            sportString !== ""
+            sportString !==
+            ""
         ) {
 
-            let headerReq =
-                new XMLHttpRequest();
+            let headerRetryCount =
+                0;
 
-            let headerUrl =
-                'https://site.api.espn.com/apis/personalized/v2/scoreboard/header?sport=' +
-                encodeURIComponent(
-                    sportString
-                ) +
-                '&t=' +
-                Date.now();
-
-
-            console.log(
-                "[ESPN HEADER] " +
-                headerUrl
-            );
-
-
-            headerReq.open(
-                'GET',
-                headerUrl
-            );
-
-
-            let isHeaderTimeout =
-                false;
-
-
-            let headerWatchdog =
-                setTimeout(
-                    function() {
-
-                        isHeaderTimeout =
-                            true;
-
-                        console.log(
-                            "Dynamic Discovery Watchdog Timeout"
-                        );
-
-
-                        try {
-                            headerReq.abort();
-                        } catch (e) {}
-
-
-                        if (
-                            fetchTasks.length ===
-                            0
-                        ) {
-                            finishError();
-                        } else {
-                            executeFetchTasks();
-                        }
-
-                    },
-                    10000
-                );
-
-
-            headerReq.onload =
+            var finishHeaderFallback =
                 function() {
 
                     if (
-                        isHeaderTimeout
+                        fetchTasks.length ===
+                        0
                     ) {
-                        return;
+                        finishError();
+                    } else {
+                        executeFetchTasks();
                     }
+                };
 
+            var fetchHeader =
+                function() {
 
-                    clearTimeout(
-                        headerWatchdog
-                    );
+                    let headerReq =
+                        new XMLHttpRequest();
 
-
-                    if (
-                        headerReq.readyState !=
-                        4
-                    ) {
-                        return;
-                    }
-
+                    let headerUrl =
+                        'https://site.api.espn.com/apis/personalized/v2/scoreboard/header?sport=' +
+                        encodeURIComponent(
+                            sportString
+                        ) +
+                        '&t=' +
+                        Date.now();
 
                     console.log(
-                        "[ESPN HEADER RESPONSE] " +
-                        headerReq.status
+                        "[ESPN HEADER] " +
+                        headerUrl
                     );
 
+                    headerReq.open(
+                        'GET',
+                        headerUrl
+                    );
 
-                    if (
-                        headerReq.status ==
-                        200
-                    ) {
+                    let isHeaderTimeout =
+                        false;
 
-                        try {
+                    let headerWatchdog =
+                        setTimeout(
+                            function() {
 
-                            let headerData =
-                                JSON.parse(
-                                    headerReq.responseText
+                                isHeaderTimeout =
+                                    true;
+
+                                console.log(
+                                    "Dynamic Discovery Watchdog Timeout"
                                 );
 
-
-                            if (
-                                headerData.sports &&
-                                headerData.sports.length >
-                                    0
-                            ) {
-
-                                let activeLeagues =
-                                    headerData
-                                        .sports[0]
-                                        .leagues;
-
+                                try {
+                                    headerReq.abort();
+                                } catch (e) {}
 
                                 if (
-                                    activeLeagues
+                                    headerRetryCount <
+                                    1
                                 ) {
+                                    headerRetryCount++;
 
-                                    activeLeagues.forEach(
-                                        league => {
+                                    console.log(
+                                        "[ESPN HEADER RETRY] Retrying after timeout"
+                                    );
 
-                                        if (
-                                            !league.id
-                                        ) {
-                                            return;
-                                        }
+                                    setTimeout(
+                                        fetchHeader,
+                                        1000
+                                    );
 
-                                        let leagueIdentifier = league.slug || league.abbreviation || league.id;
-
-                                        let dynamicUrl =
-                                            "https://site.api.espn.com/apis/site/v2/sports/" +
-                                            encodeURIComponent(
-                                                sportString
-                                            ) +
-                                            "/" +
-                                            encodeURIComponent(
-                                                String(leagueIdentifier).toLowerCase()
-                                            );
-
-
-                                        if (
-                                            !fetchTasks.some(
-                                                t =>
-                                                    t.url ===
-                                                    dynamicUrl
-                                            )
-                                        ) {
-
-                                            console.log(
-                                                "[DYNAMIC DISCOVERY] Added Active " +
-                                                sportString.toUpperCase() +
-                                                " Tour ID: " +
-                                                league.id +
-                                                " (" +
-                                                (
-                                                    league.name ||
-                                                    "Tour"
-                                                ) +
-                                                ")"
-                                            );
-
-
-                                            const currentParams =
-                                                fetchTasks.length >
-                                                0
-                                                    ? fetchTasks[0].params
-                                                    : "";
-
-
-                                            fetchTasks.push({
-                                                url:
-                                                    dynamicUrl,
-
-                                                league:
-                                                    league.abbreviation ||
-                                                    "International",
-
-                                                params:
-                                                    currentParams
-                                            });
-                                        }
-                                    });
+                                    return;
                                 }
+
+                                finishHeaderFallback();
+
+                            },
+                            10000
+                        );
+
+                    headerReq.onload =
+                        function() {
+
+                            if (
+                                isHeaderTimeout
+                            ) {
+                                return;
                             }
 
-                        } catch (e) {
+                            clearTimeout(
+                                headerWatchdog
+                            );
+
+                            if (
+                                headerReq.readyState !=
+                                4
+                            ) {
+                                return;
+                            }
 
                             console.log(
-                                "Dynamic Header Parse Error"
+                                "[ESPN HEADER RESPONSE] " +
+                                headerReq.status
                             );
-                        }
-                    }
 
+                            if (
+                                headerReq.status ==
+                                200
+                            ) {
 
-                    if (
-                        fetchTasks.length ===
-                        0
-                    ) {
-                        finishError();
-                    } else {
-                        executeFetchTasks();
-                    }
+                                try {
+
+                                    let headerData =
+                                        JSON.parse(
+                                            headerReq.responseText
+                                        );
+
+                                    if (
+                                        headerData.sports &&
+                                        headerData.sports.length >
+                                            0
+                                    ) {
+
+                                        let activeLeagues =
+                                            headerData
+                                                .sports[0]
+                                                .leagues;
+
+                                        if (
+                                            activeLeagues
+                                        ) {
+
+                                            activeLeagues.forEach(
+                                                league => {
+
+                                                if (
+                                                    !league.id
+                                                ) {
+                                                    return;
+                                                }
+
+                                                let leagueIdentifier =
+                                                    league.slug ||
+                                                    league.abbreviation ||
+                                                    league.id;
+
+                                                let dynamicUrl =
+                                                    "https://site.api.espn.com/apis/site/v2/sports/" +
+                                                    encodeURIComponent(
+                                                        sportString
+                                                    ) +
+                                                    "/" +
+                                                    encodeURIComponent(
+                                                        String(
+                                                            leagueIdentifier
+                                                        ).toLowerCase()
+                                                    );
+
+                                                if (
+                                                    !fetchTasks.some(
+                                                        t =>
+                                                            t.url ===
+                                                            dynamicUrl
+                                                    )
+                                                ) {
+
+                                                    console.log(
+                                                        "[DYNAMIC DISCOVERY] Added Active " +
+                                                        sportString.toUpperCase() +
+                                                        " Tour ID: " +
+                                                        league.id +
+                                                        " (" +
+                                                        (
+                                                            league.name ||
+                                                            "Tour"
+                                                        ) +
+                                                        ")"
+                                                    );
+
+                                                    const currentParams =
+                                                        fetchTasks.length >
+                                                        0
+                                                            ? fetchTasks[0].params
+                                                            : "";
+
+                                                    fetchTasks.push({
+                                                        url:
+                                                            dynamicUrl,
+
+                                                        league:
+                                                            league.abbreviation ||
+                                                            "International",
+
+                                                        params:
+                                                            currentParams
+                                                    });
+                                                }
+                                            });
+                                        }
+                                    }
+
+                                } catch (e) {
+
+                                    console.log(
+                                        "Dynamic Header Parse Error"
+                                    );
+                                }
+
+                                finishHeaderFallback();
+                                return;
+                            }
+
+                            if (
+                                (
+                                    headerReq.status >=
+                                        500 ||
+                                    headerReq.status ==
+                                        429
+                                ) &&
+                                headerRetryCount <
+                                    1
+                            ) {
+                                headerRetryCount++;
+
+                                console.log(
+                                    "[ESPN HEADER RETRY] Retrying due to " +
+                                    headerReq.status
+                                );
+
+                                setTimeout(
+                                    fetchHeader,
+                                    1000
+                                );
+
+                                return;
+                            }
+
+                            console.log(
+                                "[DEBUG HEADER FAILURE] status=" +
+                                headerReq.status
+                            );
+
+                            finishHeaderFallback();
+                        };
+
+                    headerReq.onerror =
+                        function() {
+
+                            if (
+                                isHeaderTimeout
+                            ) {
+                                return;
+                            }
+
+                            clearTimeout(
+                                headerWatchdog
+                            );
+
+                            console.log(
+                                "[ESPN HEADER NETWORK ERROR]"
+                            );
+
+                            if (
+                                headerRetryCount <
+                                1
+                            ) {
+                                headerRetryCount++;
+
+                                console.log(
+                                    "[ESPN HEADER RETRY] Retrying after network error"
+                                );
+
+                                setTimeout(
+                                    fetchHeader,
+                                    1000
+                                );
+
+                                return;
+                            }
+
+                            finishHeaderFallback();
+                        };
+
+                    headerReq.send();
                 };
 
-
-            headerReq.onerror =
-                function() {
-
-                    if (
-                        isHeaderTimeout
-                    ) {
-                        return;
-                    }
-
-
-                    clearTimeout(
-                        headerWatchdog
-                    );
-
-
-                    console.log(
-                        "[ESPN HEADER NETWORK ERROR]"
-                    );
-
-
-                    if (
-                        fetchTasks.length ===
-                        0
-                    ) {
-                        finishError();
-                    } else {
-                        executeFetchTasks();
-                    }
-                };
-
-
-            headerReq.send();
+            fetchHeader();
 
         } else {
 
@@ -1412,11 +1511,14 @@ function getGame(
                 );
 
             if (
-                foundGame == undefined
+                foundGame ==
+                undefined
             ) {
                 onError();
             } else {
-                onLoad(foundGame);
+                onLoad(
+                    foundGame
+                );
             }
         },
         onError
@@ -1434,10 +1536,15 @@ function parseEvent(
             ? event.competitions[0]
             : null;
 
-    if (!competition) return null;
+    if (
+        !competition
+    ) {
+        return null;
+    }
 
     const competitors =
-        competition.competitors || [];
+        competition.competitors ||
+        [];
 
     const date =
         new Date(
@@ -1445,7 +1552,8 @@ function parseEvent(
         );
 
     const status =
-        competition.status || {
+        competition.status ||
+        {
             type: {
                 name:
                     "STATUS_SCHEDULED",
@@ -1453,7 +1561,6 @@ function parseEvent(
                     ""
             }
         };
-
 
     const [details, time] =
         (function(type) {
@@ -1464,9 +1571,11 @@ function parseEvent(
             league === 2
         ) {
 
-            let localTime = "";
-            let localDate = "";
+            let localTime =
+                "";
 
+            let localDate =
+                "";
 
             if (
                 date &&
@@ -1480,19 +1589,16 @@ function parseEvent(
                         date
                     );
 
-
                 let hours =
                     date.getHours();
 
                 let minutes =
                     date.getMinutes();
 
-
                 let ampm =
                     hours >= 12
                         ? 'PM'
                         : 'AM';
-
 
                 hours =
                     hours % 12;
@@ -1502,12 +1608,10 @@ function parseEvent(
                         ? hours
                         : 12;
 
-
                 minutes =
                     minutes < 10
                         ? '0' + minutes
                         : minutes;
-
 
                 localTime =
                     hours +
@@ -1521,7 +1625,6 @@ function parseEvent(
                 localDate =
                     "Scheduled";
 
-
                 localTime =
                     (
                         status.type &&
@@ -1531,13 +1634,11 @@ function parseEvent(
                         : "Upcoming";
             }
 
-
             return [
                 localDate,
                 localTime
             ];
         }
-
 
         switch (type) {
 
@@ -1549,7 +1650,6 @@ function parseEvent(
                     "Final"
                 ];
 
-
             case "STATUS_SCHEDULED":
                 return [
                     utils.dateToScheduleDate(
@@ -1559,7 +1659,6 @@ function parseEvent(
                         date
                     )
                 ];
-
 
             default:
                 return [
@@ -1585,7 +1684,6 @@ function parseEvent(
             : "STATUS_SCHEDULED"
     );
 
-
     const id =
         event.id ||
         "0";
@@ -1593,7 +1691,6 @@ function parseEvent(
     const eventId =
         event.eventId ||
         id;
-
 
     const competitor1 =
         competitors.length > 1
@@ -1605,7 +1702,6 @@ function parseEvent(
             ? competitors[0]
             : {};
 
-
     const team1 =
         competitor1.team ||
         competitor1.athlete ||
@@ -1613,14 +1709,12 @@ function parseEvent(
             id: "0"
         };
 
-
     const team2 =
         competitor2.team ||
         competitor2.athlete ||
         {
             id: "0"
         };
-
 
     let t1Abbrev =
         String(
@@ -1630,7 +1724,6 @@ function parseEvent(
             "TBD"
         ).trim();
 
-
     let t2Abbrev =
         String(
             team2.abbreviation ||
@@ -1638,7 +1731,6 @@ function parseEvent(
             team2.lastName ||
             "TBD"
         ).trim();
-
 
     if (
         t1Abbrev.length >
@@ -1653,7 +1745,6 @@ function parseEvent(
                 .trim();
     }
 
-
     if (
         t2Abbrev.length >
         5
@@ -1667,7 +1758,6 @@ function parseEvent(
                 .trim();
     }
 
-
     let score1 =
         status.type.name ==
             "STATUS_SCHEDULED"
@@ -1677,7 +1767,6 @@ function parseEvent(
                     ""
                 );
 
-
     let score2 =
         status.type.name ==
             "STATUS_SCHEDULED"
@@ -1686,7 +1775,6 @@ function parseEvent(
                     competitor2.score ||
                     ""
                 );
-
 
     if (
         sport ==
@@ -1698,11 +1786,15 @@ function parseEvent(
             competitor1.linescores
         ) {
 
-            let sets = 0;
+            let sets =
+                0;
 
             competitor1.linescores.forEach(
                 l => {
-                    if (l.winner) {
+
+                    if (
+                        l.winner
+                    ) {
                         sets++;
                     }
                 }
@@ -1711,18 +1803,21 @@ function parseEvent(
             score1 =
                 sets.toString();
         }
-
 
         if (
             !score2 &&
             competitor2.linescores
         ) {
 
-            let sets = 0;
+            let sets =
+                0;
 
             competitor2.linescores.forEach(
                 l => {
-                    if (l.winner) {
+
+                    if (
+                        l.winner
+                    ) {
                         sets++;
                     }
                 }
@@ -1732,50 +1827,52 @@ function parseEvent(
                 sets.toString();
         }
 
-
         if (
             !score1 &&
             status.type.name !=
                 "STATUS_SCHEDULED"
         ) {
-            score1 = "0";
+            score1 =
+                "0";
         }
-
 
         if (
             !score2 &&
             status.type.name !=
                 "STATUS_SCHEDULED"
         ) {
-            score2 = "0";
+            score2 =
+                "0";
         }
     }
-
 
     if (
         sport ==
         models.sports.CRICKET
     ) {
 
-        if (score1) {
+        if (
+            score1
+        ) {
             score1 =
                 score1
                     .split(" (")[0]
                     .trim();
         }
 
-
-        if (score2) {
+        if (
+            score2
+        ) {
             score2 =
                 score2
                     .split(" (")[0]
                     .trim();
         }
 
-
         if (
             score1 &&
-            score1.indexOf("&") !== -1
+            score1.indexOf("&") !==
+                -1
         ) {
             score1 =
                 score1
@@ -1784,10 +1881,10 @@ function parseEvent(
                     .trim();
         }
 
-
         if (
             score2 &&
-            score2.indexOf("&") !== -1
+            score2.indexOf("&") !==
+                -1
         ) {
             score2 =
                 score2
@@ -1796,7 +1893,6 @@ function parseEvent(
                     .trim();
         }
     }
-
 
     const possession =
         status.type.name !=
@@ -1808,7 +1904,6 @@ function parseEvent(
                     team1,
                     team2
                 );
-
 
     const team1Record =
         (
@@ -1823,7 +1918,6 @@ function parseEvent(
                 ? competitor1.record[0].summary
                 : "";
 
-
     const team2Record =
         (
             competitor2.records &&
@@ -1837,9 +1931,8 @@ function parseEvent(
                 ? competitor2.record[0].summary
                 : "";
 
-
-    let broadcast = "";
-
+    let broadcast =
+        "";
 
     if (
         competition.broadcasts &&
@@ -1848,7 +1941,6 @@ function parseEvent(
 
         let names =
             competition.broadcasts[0].names;
-
 
         if (
             names &&
@@ -1859,16 +1951,51 @@ function parseEvent(
         }
     }
 
-    const offset = LEAGUE_OFFSETS[league] || 0;
+    const offset =
+        LEAGUE_OFFSETS[league] ||
+        0;
 
-    const rawT1Id = team1.id || competitor1.id || "0";
-    const rawT2Id = team2.id || competitor2.id || "0";
+    const rawT1Id =
+        team1.id ||
+        competitor1.id ||
+        "0";
 
-    const parsedT1 = parseInt(rawT1Id, 10);
-    const parsedT2 = parseInt(rawT2Id, 10);
+    const rawT2Id =
+        team2.id ||
+        competitor2.id ||
+        "0";
 
-    const t1Id = String((isNaN(parsedT1) ? 0 : parsedT1) + offset);
-    const t2Id = String((isNaN(parsedT2) ? 0 : parsedT2) + offset);
+    const parsedT1 =
+        parseInt(
+            rawT1Id,
+            10
+        );
+
+    const parsedT2 =
+        parseInt(
+            rawT2Id,
+            10
+        );
+
+    const t1Id =
+        String(
+            (
+                isNaN(parsedT1)
+                    ? 0
+                    : parsedT1
+            ) +
+            offset
+        );
+
+    const t2Id =
+        String(
+            (
+                isNaN(parsedT2)
+                    ? 0
+                    : parsedT2
+            ) +
+            offset
+        );
 
     var gameObj =
         new models.Game(
@@ -1900,7 +2027,6 @@ function parseEvent(
             broadcast
         );
 
-
     gameObj.eventId =
         eventId;
 
@@ -1910,7 +2036,6 @@ function parseEvent(
     gameObj.league =
         league;
 
-
     return gameObj;
 }
 
@@ -1919,8 +2044,10 @@ function gameDetails(
     situation
 ) {
     if (
-        situation == undefined ||
-        situation == null
+        situation ==
+            undefined ||
+        situation ==
+            null
     ) {
         return "";
     }
@@ -1936,11 +2063,14 @@ function gameDetails(
         case models.sports.MLB:
 
             if (
-                situation.balls === undefined ||
-                situation.strikes === undefined
+                situation.balls ===
+                    undefined ||
+                situation.strikes ===
+                    undefined
             ) {
                 return (
-                    situation.outs !== undefined
+                    situation.outs !==
+                        undefined
                         ? situation.outs +
                           " outs"
                         : ""
@@ -1968,8 +2098,10 @@ function gamePossession(
     team2
 ) {
     if (
-        situation == undefined ||
-        situation == null
+        situation ==
+            undefined ||
+        situation ==
+            null
     ) {
         return models.possession.NONE;
     }
@@ -2072,103 +2204,305 @@ function getTimelineIcon(
 }
 
 function insertUserPin(pin) {
-    if (typeof Pebble !== 'undefined' && typeof Pebble.insertTimelinePin === 'function') {
+    if (
+        typeof Pebble !==
+            'undefined' &&
+        typeof Pebble.insertTimelinePin ===
+            'function'
+    ) {
+
         try {
-            Pebble.insertTimelinePin(pin);
-            console.log("Local pin successfully pushed to OS: " + pin.id);
+
+            Pebble.insertTimelinePin(
+                pin
+            );
+
+            console.log(
+                "Local pin successfully pushed to OS: " +
+                pin.id
+            );
+
+            return true;
+
         } catch (e) {
-            console.log("Error inserting local pin: " + e);
+
+            console.log(
+                "Error inserting local pin: " +
+                e
+            );
+
+            return false;
         }
+
     } else {
-        console.log("Local insertTimelinePin not available on this platform.");
+
+        console.log(
+            "Local insertTimelinePin not available on this platform."
+        );
+
+        return false;
     }
 }
 
 function updateTimelinePins(games) {
-    if (s_timeline_sync_timer) {
-        clearInterval(s_timeline_sync_timer);
-        s_timeline_sync_timer = null;
+    if (
+        s_timeline_sync_timer
+    ) {
+        clearInterval(
+            s_timeline_sync_timer
+        );
+
+        s_timeline_sync_timer =
+            null;
     }
 
-    const now = new Date();
-    const future72h = new Date(now.getTime() + (72 * 60 * 60 * 1000));
-    const past12h = new Date(now.getTime() - (12 * 60 * 60 * 1000));
+    const now =
+        new Date();
 
-    let pushedPins = {};
+    const future72h =
+        new Date(
+            now.getTime() +
+            (
+                72 *
+                60 *
+                60 *
+                1000
+            )
+        );
+
+    const past12h =
+        new Date(
+            now.getTime() -
+            (
+                12 *
+                60 *
+                60 *
+                1000
+            )
+        );
+
+    let pushedPins =
+        {};
+
     try {
-        let parsed = JSON.parse(localStorage.getItem("pushed_pins_v4"));
-        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-            pushedPins = parsed;
+
+        let parsed =
+            JSON.parse(
+                localStorage.getItem(
+                    "pushed_pins_v4"
+                )
+            );
+
+        if (
+            parsed &&
+            typeof parsed ===
+                'object' &&
+            !Array.isArray(
+                parsed
+            )
+        ) {
+            pushedPins =
+                parsed;
         }
+
     } catch (e) {}
 
-    let pinsToPush = [];
+    let pinsToPush =
+        [];
 
-    games.forEach(game => {
-        if (game.startTime && !isNaN(game.startTime.getTime())) {
-            
-            if (game.startTime > past12h && game.startTime < future72h) {
-                
-                const pinId = "game-" + game.sport + "-" + game.id;
-                const localTimeISO = game.startTime.toISOString();
+    games.forEach(
+        game => {
 
-                if (pushedPins[pinId] === localTimeISO) {
-                    return; 
+        if (
+            game.startTime &&
+            !isNaN(
+                game.startTime.getTime()
+            )
+        ) {
+
+            if (
+                game.startTime >
+                    past12h &&
+                game.startTime <
+                    future72h
+            ) {
+
+                const pinId =
+                    "game-" +
+                    game.sport +
+                    "-" +
+                    game.id;
+
+                const localTimeISO =
+                    game.startTime.toISOString();
+
+                if (
+                    pushedPins[
+                        pinId
+                    ] ===
+                    localTimeISO
+                ) {
+                    return;
                 }
 
-                let bodyText = "Starts at: " + game.time + " (" + game.details + ")";
-                if (game.broadcast) {
-                    bodyText += "\nWatch on: " + game.broadcast;
+                let bodyText =
+                    "Starts at: " +
+                    game.time +
+                    " (" +
+                    game.details +
+                    ")";
+
+                if (
+                    game.broadcast
+                ) {
+                    bodyText +=
+                        "\nWatch on: " +
+                        game.broadcast;
                 }
 
                 var pin = {
-                    "id": pinId,
-                    "time": localTimeISO,
-                    "duration": 180,
+                    "id":
+                        pinId,
+
+                    "time":
+                        localTimeISO,
+
+                    "duration":
+                        180,
+
                     "layout": {
-                        "type": "genericPin",
-                        "title": game.team1.name + " vs " + game.team2.name,
-                        "subtitle": "Get ready for the game!",
-                        "body": bodyText,
-                        "tinyIcon": getTimelineIcon(game.sport),
-                        "largeIcon": getTimelineIcon(game.sport)
+                        "type":
+                            "genericPin",
+
+                        "title":
+                            game.team1.name +
+                            " vs " +
+                            game.team2.name,
+
+                        "subtitle":
+                            "Get ready for the game!",
+
+                        "body":
+                            bodyText,
+
+                        "tinyIcon":
+                            getTimelineIcon(
+                                game.sport
+                            ),
+
+                        "largeIcon":
+                            getTimelineIcon(
+                                game.sport
+                            )
                     }
                 };
 
-                pinsToPush.push({ pin: pin, iso: localTimeISO });
+                pinsToPush.push({
+                    pin:
+                        pin,
+                    iso:
+                        localTimeISO
+                });
             }
         }
     });
 
-    if (pinsToPush.length === 0) return;
+    if (
+        pinsToPush.length ===
+        0
+    ) {
+        return;
+    }
 
-    let index = 0;
-    s_timeline_sync_timer = setInterval(function() {
-        if (index >= pinsToPush.length) {
-            clearInterval(s_timeline_sync_timer);
-            s_timeline_sync_timer = null;
-            
-            let keys = Object.keys(pushedPins);
-            if (keys.length > 100) {
-                let newPushedPins = {};
-                keys.slice(-100).forEach(k => { newPushedPins[k] = pushedPins[k]; });
-                pushedPins = newPushedPins;
-            }
-            try {
-                localStorage.setItem("pushed_pins_v4", JSON.stringify(pushedPins));
-            } catch (e) {}
-            
-            console.log("Timeline background sync complete.");
-            return;
-        }
+    let index =
+        0;
 
-        let item = pinsToPush[index];
-        insertUserPin(item.pin); 
-        pushedPins[item.pin.id] = item.iso; 
-        
-        index++;
-    }, 1000); 
+    s_timeline_sync_timer =
+        setInterval(
+            function() {
+
+                if (
+                    index >=
+                    pinsToPush.length
+                ) {
+
+                    clearInterval(
+                        s_timeline_sync_timer
+                    );
+
+                    s_timeline_sync_timer =
+                        null;
+
+                    let keys =
+                        Object.keys(
+                            pushedPins
+                        );
+
+                    if (
+                        keys.length >
+                        100
+                    ) {
+
+                        let newPushedPins =
+                            {};
+
+                        keys
+                            .slice(
+                                -100
+                            )
+                            .forEach(
+                                k => {
+                                    newPushedPins[k] =
+                                        pushedPins[k];
+                                }
+                            );
+
+                        pushedPins =
+                            newPushedPins;
+                    }
+
+                    try {
+
+                        localStorage.setItem(
+                            "pushed_pins_v4",
+                            JSON.stringify(
+                                pushedPins
+                            )
+                        );
+
+                    } catch (e) {}
+
+                    console.log(
+                        "Timeline background sync complete."
+                    );
+
+                    return;
+                }
+
+                let item =
+                    pinsToPush[
+                        index
+                    ];
+
+                if (
+                    insertUserPin(
+                        item.pin
+                    )
+                ) {
+                    pushedPins[
+                        item.pin.id
+                    ] =
+                        item.iso;
+                }
+
+                index++;
+            },
+            1000
+        );
 }
 
-module.exports.getGames = getGames;
-module.exports.getGame = getGame;
+module.exports.getGames =
+    getGames;
+
+module.exports.getGame =
+    getGame;

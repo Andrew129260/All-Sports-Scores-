@@ -24,7 +24,7 @@ static void load_league_folders() {
         case SportNHL:
             s_leagues[0] = "NHL"; s_leagues[1] = "College Hockey"; s_num_leagues = 2; break;
         case SportNBA:
-            s_leagues[0] = "NBA"; s_leagues[1] = "WNBA"; s_leagues[2] = "College Basketball"; s_leagues[3] = "FIBA Men's WC"; s_leagues[4] = "FIBA Women's WC"; s_num_leagues = 5; break;
+            s_leagues[0] = "NBA"; s_leagues[1] = "WNBA"; s_leagues[2] = "College Basketball"; s_leagues[3] = "FIBA"; s_num_leagues = 4; break;
         case SportMLS:
             s_leagues[0] = "MLS"; s_leagues[1] = "Premier League"; s_leagues[2] = "La Liga"; s_leagues[3] = "Bundesliga"; s_leagues[4] = "Serie A"; s_leagues[5] = "Liga MX"; s_leagues[6] = "Champions League"; s_leagues[7] = "World Cup"; s_leagues[8] = "Women's World Cup"; s_num_leagues = 9; break;
         case SportRugby:
