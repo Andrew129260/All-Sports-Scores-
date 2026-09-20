@@ -1,6 +1,6 @@
 This is a fix it project from Andy's original sports app. 
 
-All credit goes to them for building it. I just fixed it and ported it to newer platforms. 
+All credit goes to them for building it. I just fixed it, added more sports, and ported it to newer platforms. 
 
 Here is the original source:
 
