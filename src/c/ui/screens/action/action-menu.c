@@ -1,4 +1,5 @@
 #include <stdbool.h>
+#include <stdlib.h>
 #include "pebble.h"
 #include "../../../data/model/models.h"
 #include "../../../data/comms/favorites/favorites-handler.h"
@@ -88,8 +89,37 @@ static void action_click_callback(ActionMenu *menu, const ActionMenuItem *perfor
 }
 
 static void action_menu_did_close(ActionMenu *action_menu, const ActionMenuItem *item, void *context) {
+    #if defined(PBL_PLATFORM_EMERY) || defined(PBL_PLATFORM_GABBRO)
+    // Safely unsubscribe so the underlying score-screen can retake control!
+    if (touch_service_is_enabled()) {
+        touch_service_unsubscribe();
+    }
+    #endif
+
     action_menu_hierarchy_destroy(s_level, NULL, NULL);
 }
+
+// --- SWIPE GESTURE LOGIC ---
+#if defined(PBL_PLATFORM_EMERY) || defined(PBL_PLATFORM_GABBRO)
+static int16_t s_touch_start_x = 0;
+static int16_t s_touch_start_y = 0;
+
+static void action_touch_handler(const TouchEvent *event, void *context) {
+    if (event->type == TouchEvent_Touchdown) {
+        s_touch_start_x = event->x;
+        s_touch_start_y = event->y;
+    } else if (event->type == TouchEvent_Liftoff) {
+        int16_t dx = event->x - s_touch_start_x;
+        int16_t dy = event->y - s_touch_start_y;
+
+        // Swiped Left-to-Right (Positive X) -> Go Back
+        if (dx > 40 && abs(dx) > abs(dy)) {
+            // ActionMenu manages its own internal Window. Popping the stack safely closes it!
+            window_stack_pop(true);
+        }
+    }
+}
+#endif
 
 static void populate_label_buffer(char *buffer, size_t buffer_size, char *team_name, bool is_favorite) {
     const char *safe_name = team_name ? team_name : "Team";
@@ -136,4 +166,11 @@ void game_action_menu_open(Game *game) {
     config = config_temp;
 
     s_action_menu = action_menu_open(&config);
+
+    #if defined(PBL_PLATFORM_EMERY) || defined(PBL_PLATFORM_GABBRO)
+    // Subscribe to touch events for the ActionMenu overlay
+    if (touch_service_is_enabled()) {
+        touch_service_subscribe(action_touch_handler, NULL);
+    }
+    #endif
 }
