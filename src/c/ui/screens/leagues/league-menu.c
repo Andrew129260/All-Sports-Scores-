@@ -30,9 +30,9 @@ static void load_league_folders() {
         case SportRugby:
             s_leagues[0] = "NRL"; s_leagues[1] = "Six Nations"; s_leagues[2] = "Rugby World Cup"; s_num_leagues = 3; break;
         case SportCricket:
-            s_leagues[0] = "International"; s_leagues[1] = "IPL"; s_leagues[2] = "Major League Cricket"; s_num_leagues = 3; break;
+            s_leagues[0] = "International"; s_leagues[1] = "Int'l Past"; s_leagues[2] = "IPL"; s_leagues[3] = "IPL Past"; s_leagues[4] = "Major League Cricket"; s_leagues[5] = "MLC Past"; s_num_leagues = 6; break;
         case SportTennis:
-            s_leagues[0] = "ATP"; s_leagues[1] = "WTA"; s_num_leagues = 2; break;
+            s_leagues[0] = "ATP"; s_leagues[1] = "ATP Past"; s_leagues[2] = "WTA"; s_leagues[3] = "WTA Past"; s_num_leagues = 4; break;
         case SportAFL:
             s_leagues[0] = "AFL"; s_num_leagues = 1; break;
         case SportMMA:
@@ -50,15 +50,29 @@ static int16_t menu_get_row_height_callback(MenuLayer *menu_layer, MenuIndex *ce
     return PBL_IF_ROUND_ELSE(60, 44);
 }
 
+// GABBRO HEADER FIX: Expand header down to 40px so the icon clears the top curve!
 static int16_t menu_get_header_height_callback(MenuLayer *menu_layer, uint16_t section_index, void *data) {
-    return PBL_IF_ROUND_ELSE(32, 0); 
+    return PBL_IF_ROUND_ELSE(40, 0); 
 }
 
 static void menu_draw_header_callback(GContext* ctx, const Layer *cell_layer, uint16_t section_index, void *data) {
     #if defined(PBL_ROUND)
     GRect bounds = layer_get_bounds(cell_layer);
     graphics_context_set_text_color(ctx, GColorDukeBlue);
-    graphics_draw_text(ctx, sport_get_name(s_current_sport), fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD), bounds, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
+    
+    GBitmap *icon = image_cache_get_sport_icon(s_current_sport);
+    if (icon) {
+        graphics_context_set_fill_color(ctx, GColorWhite);
+        graphics_fill_circle(ctx, GPoint(bounds.size.w / 2 - 37, 22), 11);
+        graphics_context_set_compositing_mode(ctx, GCompOpSet);
+        graphics_draw_bitmap_in_rect(ctx, icon, GRect(bounds.size.w / 2 - 45, 14, 16, 16));
+    }
+    
+    GRect text_bounds = bounds;
+    text_bounds.origin.x += 10;
+    text_bounds.origin.y += 6; // Push text down slightly from the bezel edge
+    
+    graphics_draw_text(ctx, sport_get_name(s_current_sport), fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD), text_bounds, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
     #endif
 }
 
@@ -129,6 +143,13 @@ static void initialise_ui(Window *window) {
     s_header_data.title = sport_get_name(s_current_sport);
     s_header_data.info = NULL;
     s_header_data.under_status_bar = true;
+    
+    #if !defined(PBL_PLATFORM_APLITE)
+        s_header_data.icon = image_cache_get_sport_icon(s_current_sport);
+    #else
+        s_header_data.icon = NULL;
+    #endif
+
     s_header = create_header_layer(bounds, s_header_data);
     layer_add_child(window_layer, (Layer*)s_header);
     #endif
@@ -140,22 +161,20 @@ static void initialise_ui(Window *window) {
 
 static void destroy_ui(Window *window) {
     destroy_menu_layer();
-    if(s_status_bar) { status_bar_layer_destroy(s_status_bar); s_status_bar = NULL; }
+    if (s_status_bar) { status_bar_layer_destroy(s_status_bar); s_status_bar = NULL; }
     #if !defined(PBL_ROUND)
-    if(s_header) { layer_destroy((Layer*)s_header); s_header = NULL; }
+    if (s_header) { layer_destroy((Layer*)s_header); s_header = NULL; }
     #endif
 }
 
 static void window_appear(Window *window) {
     #if defined(PBL_PLATFORM_APLITE)
-    // Rebuild the heavy menu layer when navigating back
     build_menu_layer(window);
     #endif
 }
 
 static void window_disappear(Window *window) {
     #if defined(PBL_PLATFORM_APLITE)
-    // Destroy the MenuLayer to save RAM while viewing games
     destroy_menu_layer();
     #endif
 }

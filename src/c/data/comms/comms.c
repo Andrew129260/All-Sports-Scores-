@@ -1,80 +1,155 @@
 #include "pebble.h"
+
 #include "../model/models.h"
 #include "comms.h"
+
 #include "games/games-handler.h"
 #include "favorites/favorites-handler.h"
 #include "prefs/prefs-handler.h"
 
-// Optimize RAM by sizing buffers to their strict real-world limits
+// =========================================================
+// MEMORY CONFIGURATION
+// =========================================================
+
 #if defined(PBL_PLATFORM_APLITE)
-const uint32_t inbox_size = 640; // Safely handles a heavy game dictionary without dropping packets
+static const uint32_t inbox_size = 640;
 #else
-const uint32_t inbox_size = 1024; 
+static const uint32_t inbox_size = 1024;
 #endif
-const uint32_t outbox_size = 128; // Only sending small integer request codes
 
-static bool s_js_ready;
+static const uint32_t outbox_size = 128;
 
-static void inbox_received_callback(DictionaryIterator *iter, void *context) {
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "recieved js message");
-    // A new message has been successfully received
-    Tuple *ready_tuple = dict_find(iter, MESSAGE_KEY_READY);
+static bool s_js_ready = false;
 
-    if(ready_tuple) {
-        // PebbleKit JS is ready! Safe to send messages
-        APP_LOG(APP_LOG_LEVEL_DEBUG, "JS Ready");
+// =========================================================
+// INCOMING MESSAGES
+// =========================================================
+
+static void inbox_received_callback(
+    DictionaryIterator *iter,
+    void *context
+) {
+    if (!iter) return;
+
+    APP_LOG(
+        APP_LOG_LEVEL_DEBUG,
+        "Received JS message"
+    );
+
+    if (dict_find(iter, MESSAGE_KEY_READY)) {
         s_js_ready = true;
+
+        APP_LOG(
+            APP_LOG_LEVEL_DEBUG,
+            "JS Ready"
+        );
     }
 
-
-    // A list of games has been recieved
-    Tuple *game_list_tuple = dict_find(iter, MESSAGE_KEY_SEND_GAME_LIST);
-    if(game_list_tuple) {
+    if (dict_find(iter, MESSAGE_KEY_SEND_GAME_LIST)) {
         handle_games_recieved(iter);
     }
 
-    // A game update has been recieved
-    Tuple *game_update_tuple = dict_find(iter, MESSAGE_KEY_SEND_GAME_UPDATE);
-    if(game_update_tuple) {
+    if (dict_find(iter, MESSAGE_KEY_SEND_GAME_UPDATE)) {
         handle_game_update_recieved(iter);
     }
 
-    // A confirmation of setting a favorite has been recieved
-    Tuple *favorite_tuple = dict_find(iter, MESSAGE_KEY_CONFIRM_FAVORITE);
-    if(favorite_tuple) {
+    if (dict_find(iter, MESSAGE_KEY_LOAD_BREAKDOWN)) {
+        handle_breakdown_received(iter);
+    }
+
+    if (dict_find(iter, MESSAGE_KEY_CONFIRM_FAVORITE)) {
         handle_favorite_change_result(iter);
     }
 
-    // A config change has been recieved
-    Tuple *config_tuple = dict_find(iter, MESSAGE_KEY_CONFIG_SHOW_RECORDS);
-    if (config_tuple) {
+    if (dict_find(iter, MESSAGE_KEY_CONFIG_SHOW_RECORDS)) {
         handle_config_recieved(iter);
     }
 }
 
-static void inbox_dropped_callback(AppMessageResult reason, void *context) {
-  // A message was received, but had to be dropped
-  APP_LOG(APP_LOG_LEVEL_ERROR, "Message dropped. Reason: %d", (int)reason);
+// =========================================================
+// INBOX ERRORS
+// =========================================================
+
+static void inbox_dropped_callback(
+    AppMessageResult reason,
+    void *context
+) {
+    APP_LOG(
+        APP_LOG_LEVEL_ERROR,
+        "Message dropped: %d",
+        (int)reason
+    );
 }
 
-static void outbox_sent_callback(DictionaryIterator *iter, void *context) {
-  // The message just sent has been successfully delivered
+// =========================================================
+// OUTBOX CALLBACKS
+// =========================================================
 
+static void outbox_sent_callback(
+    DictionaryIterator *iter,
+    void *context
+) {
+    // Delivery acknowledged by phone.
 }
 
-static void outbox_failed_callback(DictionaryIterator *iter, AppMessageResult reason, void *context) {
-  // The message just sent failed to be delivered
-  APP_LOG(APP_LOG_LEVEL_ERROR, "Message send failed. Reason: %d", (int)reason);
+static void outbox_failed_callback(
+    DictionaryIterator *iter,
+    AppMessageResult reason,
+    void *context
+) {
+    APP_LOG(
+        APP_LOG_LEVEL_ERROR,
+        "Outbox delivery failed: %d",
+        (int)reason
+    );
+
+    // Only handle game-related requests here.
+    // Favorite and preference handlers remain independent.
+    handle_game_outbox_failed(iter);
 }
 
-void setup_comms() {
-    app_message_register_inbox_received(inbox_received_callback);
-    app_message_register_inbox_dropped(inbox_dropped_callback);
-    app_message_register_outbox_sent(outbox_sent_callback);
-    app_message_register_outbox_failed(outbox_failed_callback);
-    app_message_open(inbox_size, outbox_size);
+// =========================================================
+// INITIALIZATION
+// =========================================================
+
+void setup_comms(void) {
+    s_js_ready = false;
+
+    app_message_register_inbox_received(
+        inbox_received_callback
+    );
+
+    app_message_register_inbox_dropped(
+        inbox_dropped_callback
+    );
+
+    app_message_register_outbox_sent(
+        outbox_sent_callback
+    );
+
+    app_message_register_outbox_failed(
+        outbox_failed_callback
+    );
+
+    AppMessageResult result = app_message_open(
+        inbox_size,
+        outbox_size
+    );
+
+    if (result != APP_MSG_OK) {
+        APP_LOG(
+            APP_LOG_LEVEL_ERROR,
+            "AppMessage open failed: %d",
+            (int)result
+        );
+    }
 }
 
-void destroy_comms() {
+// =========================================================
+// SHUTDOWN
+// =========================================================
+
+void destroy_comms(void) {
     app_message_deregister_callbacks();
+    s_js_ready = false;
 }

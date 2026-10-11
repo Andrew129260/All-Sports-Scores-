@@ -41,7 +41,9 @@
             "CONFIG_SHOW_RECORDS",
             "SEND_GAME_BROADCAST",
             "SEND_GAME_LEAGUE",
-            "LEAGUE_INDEX"
+            "LEAGUE_INDEX",
+            "REQUEST_BREAKDOWN",
+            "LOAD_BREAKDOWN"
         ],
         "projectType": "native",
         "resources": {
@@ -275,5 +277,5 @@
             "watchface": false
         }
     },
-    "version": "9.0.6"
+    "version": "10.0.0"
 }

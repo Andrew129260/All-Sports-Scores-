@@ -1,9 +1,17 @@
 #include "pebble.h"
+#include <stdlib.h>
+#include <string.h>
+#include <stdint.h>
+
 #include "../comms.h"
 #include "games-handler.h"
 #include "../../model/models.h"
 
-static int current_request = -1;
+// Separate request tracking
+static int current_list_request = -1;
+static int current_update_request = -1;
+static int current_breakdown_request = -1;
+
 static int games_count = 0;
 static int expected_games = 0;
 
@@ -15,8 +23,7 @@ static int expected_games = 0;
     #define MAX_GAMES 50
 #endif
 
-// --- STATIC STRING POOL ---
-// Eliminates 50 malloc() calls per sync on legacy hardware
+// Aplite's fixed-size string pool
 #if defined(PBL_PLATFORM_APLITE)
 typedef struct {
     char league[16];
@@ -36,30 +43,40 @@ static GameStringPool s_string_pool[MAX_GAMES];
 
 static Game s_games[MAX_GAMES];
 
-static GameListSuccessCallback on_games_success;
-static GameListErrorCallback on_games_error;
-static GameUpdateCallback on_game_update;
+static GameListSuccessCallback on_games_success = NULL;
+static GameListErrorCallback on_games_error = NULL;
+static GameUpdateCallback on_game_update = NULL;
+
+static BreakdownSuccessCallback on_breakdown_success = NULL;
+static GameListErrorCallback on_breakdown_error = NULL;
 
 static char empty_string[] = "";
 
-#define GAMES_LIST_INIT_ARRAY 4
+// =========================================================
+// MEMORY MANAGEMENT
+// =========================================================
 
 static void safe_free(char *str) {
-    if (str != NULL && str != empty_string) {
-        #if defined(PBL_PLATFORM_APLITE)
-        // Never attempt to free pointers that belong to the static string pool
-        if ((void*)str >= (void*)s_string_pool && (void*)str < (void*)(s_string_pool + MAX_GAMES)) {
-            return;
-        }
-        #endif
-        free(str);
+    if (!str || str == empty_string) {
+        return;
     }
+
+#if defined(PBL_PLATFORM_APLITE)
+    uintptr_t address = (uintptr_t)str;
+    uintptr_t pool_start = (uintptr_t)&s_string_pool[0];
+    uintptr_t pool_end =
+        (uintptr_t)&s_string_pool[MAX_GAMES];
+
+    if (address >= pool_start && address < pool_end) {
+        return;
+    }
+#endif
+
+    free(str);
 }
 
 static void clear_game(Game *game) {
-    if (game == NULL) {
-        return;
-    }
+    if (!game) return;
 
     safe_free(game->league);
 
@@ -76,18 +93,7 @@ static void clear_game(Game *game) {
     safe_free(game->details);
     safe_free(game->broadcast);
 
-    game->league = NULL;
-    game->team1.name = NULL;
-    game->team1.score = NULL;
-    game->team1.record = NULL;
-    game->team2.name = NULL;
-    game->team2.score = NULL;
-    game->team2.record = NULL;
-
-    game->time = NULL;
-    game->summary = NULL;
-    game->details = NULL;
-    game->broadcast = NULL;
+    memset(game, 0, sizeof(Game));
 }
 
 static void free_games_array(void) {
@@ -99,85 +105,61 @@ static void free_games_array(void) {
     expected_games = 0;
 }
 
+void handle_cancel_breakdown_request(void) {
+    current_breakdown_request = -1;
+    on_breakdown_success = NULL;
+    on_breakdown_error = NULL;
+}
+
 void handle_clear_games(void) {
-    current_request = -1;
+    current_list_request = -1;
+    current_update_request = -1;
+
+    handle_cancel_breakdown_request();
     free_games_array();
+
     on_games_success = NULL;
     on_games_error = NULL;
     on_game_update = NULL;
 }
 
-void handle_request_games(
-    Sport sport,
-    int league_index,
-    GameListSuccessCallback on_success,
-    GameListErrorCallback on_error
+// =========================================================
+// DICTIONARY HELPERS
+// =========================================================
+
+static int32_t get_dict_int_safe(
+    DictionaryIterator *iter,
+    uint32_t key,
+    int32_t default_val
 ) {
-    handle_clear_games();
+    if (!iter) return default_val;
 
-    int request_id = rand();
+    Tuple *t = dict_find(iter, key);
+    if (!t) return default_val;
 
-    DictionaryIterator *out_iter;
-    AppMessageResult result = app_message_outbox_begin(&out_iter);
-
-    if (result == APP_MSG_OK) {
-        Tuplet update_game_tuple = TupletInteger(MESSAGE_KEY_LOAD_GAMES, sport);
-        dict_write_tuplet(out_iter, &update_game_tuple);
-
-        Tuplet request_id_tuple = TupletInteger(MESSAGE_KEY_REQUEST_ID, request_id);
-        dict_write_tuplet(out_iter, &request_id_tuple);
-
-        Tuplet league_index_tuple = TupletInteger(MESSAGE_KEY_LEAGUE_INDEX, league_index);
-        dict_write_tuplet(out_iter, &league_index_tuple);
-
-        result = app_message_outbox_send();
-
-        if (result != APP_MSG_OK) {
-            APP_LOG(APP_LOG_LEVEL_ERROR, "Error sending outbox: %d", (int)result);
-            if (on_error) on_error(ConnectionError);
-        } else {
-            current_request = request_id;
-            on_games_success = on_success;
-            on_games_error = on_error;
+    if (t->type == TUPLE_INT) {
+        switch (t->length) {
+            case 1: return t->value->int8;
+            case 2: return t->value->int16;
+            case 4: return t->value->int32;
+            default: return default_val;
         }
-    } else {
-        APP_LOG(APP_LOG_LEVEL_ERROR, "Error preparing outbox: %d", (int)result);
-        if (on_error) on_error(ConnectionError);
-    }
-}
-
-void update_game(Game *game, GameUpdateCallback on_update) {
-    if (game == NULL) {
-        if (on_update) on_update(GameUpdateNetworkError);
-        return;
     }
 
-    int request_id = rand();
-
-    DictionaryIterator *out_iter;
-    AppMessageResult result = app_message_outbox_begin(&out_iter);
-
-    if (result == APP_MSG_OK) {
-        Tuplet update_game_id_tuple = TupletInteger(MESSAGE_KEY_UPDATE_GAME_ID, game->id);
-        Tuplet update_game_sport_tuple = TupletInteger(MESSAGE_KEY_UPDATE_GAME_SPORT, game->sport);
-
-        dict_write_tuplet(out_iter, &update_game_id_tuple);
-        dict_write_tuplet(out_iter, &update_game_sport_tuple);
-
-        Tuplet request_id_tuple = TupletInteger(MESSAGE_KEY_REQUEST_ID, request_id);
-        dict_write_tuplet(out_iter, &request_id_tuple);
-
-        result = app_message_outbox_send();
-
-        if (result != APP_MSG_OK) {
-            if (on_update) on_update(GameUpdateNetworkError);
-        } else {
-            current_request = request_id;
-            on_game_update = on_update;
+    if (t->type == TUPLE_UINT) {
+        switch (t->length) {
+            case 1: return t->value->uint8;
+            case 2: return t->value->uint16;
+            case 4:
+                if (t->value->uint32 <= INT32_MAX) {
+                    return (int32_t)t->value->uint32;
+                }
+                return default_val;
+            default: return default_val;
         }
-    } else {
-        if (on_update) on_update(GameUpdateNetworkError);
     }
+
+    return default_val;
 }
 
 static char *copy_dict_string(
@@ -189,104 +171,446 @@ static char *copy_dict_string(
 ) {
     Tuple *tuple = dict_find(dict, key);
 
-    if (!tuple || tuple->type != TUPLE_CSTRING || tuple->length == 0) {
+    if (!tuple ||
+        tuple->type != TUPLE_CSTRING ||
+        tuple->length == 0) {
         return empty_string;
     }
 
-    // SECURITY PATCH: Rely strictly on the dictionary's byte-length header, not an assumed null terminator.
-    size_t len = tuple->length > 0 ? tuple->length - 1 : 0;
+    // Validate that the tuple really contains a terminator.
+    const char *source = tuple->value->cstring;
 
-    #if defined(PBL_PLATFORM_APLITE)
-    if (aplite_buf != NULL && aplite_buf_size > 0) {
-        // Enforce the static pool boundary regardless of the incoming packet length
-        size_t safe_len = len < (aplite_buf_size - 1) ? len : (aplite_buf_size - 1);
-        memcpy(aplite_buf, tuple->value->cstring, safe_len);
+    const char *end = memchr(
+        source,
+        '\0',
+        tuple->length
+    );
+
+    if (!end) {
+        APP_LOG(APP_LOG_LEVEL_WARNING,
+                "Invalid string: %s", debug_name);
+        return empty_string;
+    }
+
+    size_t len = (size_t)(end - source);
+
+#if defined(PBL_PLATFORM_APLITE)
+    if (aplite_buf && aplite_buf_size > 0) {
+        size_t safe_len = len;
+
+        if (safe_len >= aplite_buf_size) {
+            safe_len = aplite_buf_size - 1;
+        }
+
+        memcpy(aplite_buf, source, safe_len);
         aplite_buf[safe_len] = '\0';
+
         return aplite_buf;
     }
-    #endif
+#endif
 
     char *str = malloc(len + 1);
 
-    if (str != NULL) {
-        memcpy(str, tuple->value->cstring, len);
-        str[len] = '\0'; // Force null termination securely
-    } else {
-        APP_LOG(APP_LOG_LEVEL_ERROR, "DIAGNOSTIC: MALLOC FAILED for %s (Len: %d)", debug_name, (int)len);
+    if (!str) {
+        APP_LOG(APP_LOG_LEVEL_ERROR,
+                "MALLOC FAILED: %s (%d)",
+                debug_name, (int)len);
+
         return empty_string;
     }
+
+    memcpy(str, source, len);
+    str[len] = '\0';
 
     return str;
 }
 
-static int32_t get_dict_int_safe(DictionaryIterator *iter, uint32_t key, int32_t default_val) {
-    Tuple *t = dict_find(iter, key);
-    if (!t) return default_val;
+// =========================================================
+// CALLBACK COMPLETION
+// =========================================================
 
-    switch (t->length) {
-        case 1: return t->value->int8;
-        case 2: return t->value->int16;
-        case 4: return t->value->int32;
-        default: return default_val;
+static void finish_list_error(AppError error) {
+    GameListErrorCallback callback = on_games_error;
+
+    current_list_request = -1;
+    on_games_success = NULL;
+    on_games_error = NULL;
+
+    if (callback) callback(error);
+}
+
+static void finish_list_success(void) {
+    GameListSuccessCallback callback = on_games_success;
+
+    current_list_request = -1;
+    on_games_success = NULL;
+    on_games_error = NULL;
+
+    if (callback) callback(games_count, s_games);
+}
+
+static void finish_update(GameUpdateResult result) {
+    GameUpdateCallback callback = on_game_update;
+
+    current_update_request = -1;
+    on_game_update = NULL;
+
+    if (callback) callback(result);
+}
+
+// =========================================================
+// GAME LIST REQUEST
+// =========================================================
+
+void handle_request_games(
+    Sport sport,
+    int league_index,
+    GameListSuccessCallback on_success,
+    GameListErrorCallback on_error
+) {
+    handle_clear_games();
+
+    int request_id = rand();
+
+    DictionaryIterator *out_iter = NULL;
+
+    AppMessageResult result =
+        app_message_outbox_begin(&out_iter);
+
+    if (result != APP_MSG_OK || !out_iter) {
+        if (on_error) on_error(ConnectionError);
+        return;
+    }
+
+    Tuplet sport_tuple =
+        TupletInteger(MESSAGE_KEY_LOAD_GAMES, sport);
+
+    Tuplet request_tuple =
+        TupletInteger(MESSAGE_KEY_REQUEST_ID, request_id);
+
+    Tuplet league_tuple =
+        TupletInteger(MESSAGE_KEY_LEAGUE_INDEX, league_index);
+
+    if (dict_write_tuplet(out_iter, &sport_tuple) != DICT_OK ||
+        dict_write_tuplet(out_iter, &request_tuple) != DICT_OK ||
+        dict_write_tuplet(out_iter, &league_tuple) != DICT_OK) {
+
+        if (on_error) on_error(ConnectionError);
+        return;
+    }
+
+    result = app_message_outbox_send();
+
+    if (result != APP_MSG_OK) {
+        APP_LOG(APP_LOG_LEVEL_ERROR,
+                "Game request send failed: %d", (int)result);
+
+        if (on_error) on_error(ConnectionError);
+        return;
+    }
+
+    current_list_request = request_id;
+    on_games_success = on_success;
+    on_games_error = on_error;
+}
+
+// =========================================================
+// BREAKDOWN REQUEST
+// =========================================================
+
+void handle_request_breakdown(
+    Game *game,
+    BreakdownSuccessCallback on_success,
+    GameListErrorCallback on_error
+) {
+    if (!game) {
+        if (on_error) on_error(ConnectionError);
+        return;
+    }
+
+    // Invalidate any older breakdown request.
+    handle_cancel_breakdown_request();
+
+    int request_id = rand();
+
+    DictionaryIterator *out_iter = NULL;
+
+    AppMessageResult result =
+        app_message_outbox_begin(&out_iter);
+
+    if (result != APP_MSG_OK || !out_iter) {
+        if (on_error) on_error(ConnectionError);
+        return;
+    }
+
+    Tuplet sport_tuple =
+        TupletInteger(MESSAGE_KEY_REQUEST_BREAKDOWN, game->sport);
+
+    Tuplet game_tuple =
+        TupletInteger(MESSAGE_KEY_UPDATE_GAME_ID, game->id);
+
+    Tuplet request_tuple =
+        TupletInteger(MESSAGE_KEY_REQUEST_ID, request_id);
+
+    bool writes_ok =
+        dict_write_tuplet(out_iter, &sport_tuple) == DICT_OK &&
+        dict_write_tuplet(out_iter, &game_tuple) == DICT_OK &&
+        dict_write_tuplet(out_iter, &request_tuple) == DICT_OK;
+
+    if (writes_ok && game->league && game->league[0]) {
+        writes_ok =
+            dict_write_cstring(
+                out_iter,
+                MESSAGE_KEY_SEND_GAME_LEAGUE,
+                game->league
+            ) == DICT_OK;
+    }
+
+    if (!writes_ok) {
+        if (on_error) on_error(ConnectionError);
+        return;
+    }
+
+    result = app_message_outbox_send();
+
+    if (result != APP_MSG_OK) {
+        APP_LOG(APP_LOG_LEVEL_ERROR,
+                "Breakdown send failed: %d", (int)result);
+
+        if (on_error) on_error(ConnectionError);
+        return;
+    }
+
+    current_breakdown_request = request_id;
+    on_breakdown_success = on_success;
+    on_breakdown_error = on_error;
+}
+
+void handle_breakdown_received(DictionaryIterator *iter) {
+    int request_id =
+        get_dict_int_safe(iter, MESSAGE_KEY_REQUEST_ID, -1);
+
+    if (current_breakdown_request == -1 ||
+        request_id != current_breakdown_request) {
+
+        APP_LOG(APP_LOG_LEVEL_WARNING,
+                "Ignoring stale breakdown response");
+        return;
+    }
+
+    Tuple *tuple =
+        dict_find(iter, MESSAGE_KEY_LOAD_BREAKDOWN);
+
+    BreakdownSuccessCallback success = on_breakdown_success;
+    GameListErrorCallback error = on_breakdown_error;
+
+    // Prevent duplicate callbacks before invoking the UI.
+    handle_cancel_breakdown_request();
+
+    if (tuple &&
+        tuple->type == TUPLE_CSTRING &&
+        tuple->length > 0 &&
+        memchr(tuple->value->cstring, '\0', tuple->length)) {
+
+        if (success) {
+            // Callback must copy this string immediately.
+            success(tuple->value->cstring);
+        }
+
+    } else {
+        APP_LOG(APP_LOG_LEVEL_ERROR,
+                "Invalid breakdown response");
+
+        if (error) error(NetworkError);
     }
 }
 
-void game_set(Game *game, DictionaryIterator *iter) {
-    if (game == NULL) return;
+// =========================================================
+// GAME REFRESH REQUEST
+// =========================================================
 
-    // Use pointer math to safely grab the correct string pool index
-    #if defined(PBL_PLATFORM_APLITE)
-        int pool_idx = game - s_games;
-        bool use_pool = (pool_idx >= 0 && pool_idx < MAX_GAMES);
-        GameStringPool *pool = use_pool ? &s_string_pool[pool_idx] : NULL;
-        #define GET_STR(key, debug, field) copy_dict_string(iter, key, debug, pool ? pool->field : NULL, pool ? sizeof(pool->field) : 0)
-    #else
-        #define GET_STR(key, debug, field) copy_dict_string(iter, key, debug, NULL, 0)
-    #endif
+void update_game(Game *game, GameUpdateCallback on_update) {
+    if (!game) {
+        if (on_update) on_update(GameUpdateNetworkError);
+        return;
+    }
+
+    // Don't overlap refresh operations.
+    if (current_update_request != -1) {
+        APP_LOG(APP_LOG_LEVEL_WARNING,
+                "Game refresh already pending");
+        if (on_update) on_update(GameUpdateNetworkError);
+        return;
+    }
+
+    int request_id = rand();
+
+    DictionaryIterator *out_iter = NULL;
+
+    AppMessageResult result =
+        app_message_outbox_begin(&out_iter);
+
+    if (result != APP_MSG_OK || !out_iter) {
+        if (on_update) on_update(GameUpdateNetworkError);
+        return;
+    }
+
+    Tuplet game_tuple =
+        TupletInteger(MESSAGE_KEY_UPDATE_GAME_ID, game->id);
+
+    Tuplet sport_tuple =
+        TupletInteger(MESSAGE_KEY_UPDATE_GAME_SPORT, game->sport);
+
+    Tuplet request_tuple =
+        TupletInteger(MESSAGE_KEY_REQUEST_ID, request_id);
+
+    if (dict_write_tuplet(out_iter, &game_tuple) != DICT_OK ||
+        dict_write_tuplet(out_iter, &sport_tuple) != DICT_OK ||
+        dict_write_tuplet(out_iter, &request_tuple) != DICT_OK) {
+
+        if (on_update) on_update(GameUpdateNetworkError);
+        return;
+    }
+
+    result = app_message_outbox_send();
+
+    if (result != APP_MSG_OK) {
+        if (on_update) on_update(GameUpdateNetworkError);
+        return;
+    }
+
+    current_update_request = request_id;
+    on_game_update = on_update;
+}
+
+// =========================================================
+// GAME DATA PARSING
+// =========================================================
+
+void game_set(Game *game, DictionaryIterator *iter) {
+    if (!game || !iter) return;
+
+#if defined(PBL_PLATFORM_APLITE)
+    // Only pool storage for entries in our static array.
+    GameStringPool *pool = NULL;
+
+    uintptr_t address = (uintptr_t)game;
+    uintptr_t start = (uintptr_t)&s_games[0];
+    uintptr_t end = (uintptr_t)&s_games[MAX_GAMES];
+
+    if (address >= start && address < end) {
+        size_t offset = (size_t)(address - start);
+
+        if (offset % sizeof(Game) == 0) {
+            size_t index = offset / sizeof(Game);
+
+            if (index < MAX_GAMES) {
+                pool = &s_string_pool[index];
+            }
+        }
+    }
+
+#define GET_STR(key, name, field) \
+    copy_dict_string(iter, key, name, \
+        pool ? pool->field : NULL, \
+        pool ? sizeof(pool->field) : 0)
+#else
+#define GET_STR(key, name, field) \
+    copy_dict_string(iter, key, name, NULL, 0)
+#endif
 
     Game parsed = {0};
 
-    parsed.id = get_dict_int_safe(iter, MESSAGE_KEY_SEND_GAME_ID, 0);
-    parsed.sport = get_dict_int_safe(iter, MESSAGE_KEY_SEND_GAME_SPORT, 0);
-    parsed.league = GET_STR(MESSAGE_KEY_SEND_GAME_LEAGUE, "League", league);
+    parsed.id = get_dict_int_safe(
+        iter, MESSAGE_KEY_SEND_GAME_ID, 0);
 
-    char *team_1_name = GET_STR(MESSAGE_KEY_SEND_GAME_TEAM_1_NAME, "Team1Name", t1_name);
-    char *team_2_name = GET_STR(MESSAGE_KEY_SEND_GAME_TEAM_2_NAME, "Team2Name", t2_name);
-    char *team_1_score = GET_STR(MESSAGE_KEY_SEND_GAME_TEAM_1_SCORE, "Team1Score", t1_score);
-    char *team_2_score = GET_STR(MESSAGE_KEY_SEND_GAME_TEAM_2_SCORE, "Team2Score", t2_score);
+    parsed.sport = get_dict_int_safe(
+        iter, MESSAGE_KEY_SEND_GAME_SPORT, 0);
+
+    parsed.league =
+        GET_STR(MESSAGE_KEY_SEND_GAME_LEAGUE,
+                "League", league);
+
+    char *t1_name =
+        GET_STR(MESSAGE_KEY_SEND_GAME_TEAM_1_NAME,
+                "Team1Name", t1_name);
+
+    char *t2_name =
+        GET_STR(MESSAGE_KEY_SEND_GAME_TEAM_2_NAME,
+                "Team2Name", t2_name);
+
+    char *t1_score =
+        GET_STR(MESSAGE_KEY_SEND_GAME_TEAM_1_SCORE,
+                "Team1Score", t1_score);
+
+    char *t2_score =
+        GET_STR(MESSAGE_KEY_SEND_GAME_TEAM_2_SCORE,
+                "Team2Score", t2_score);
 
     parsed.team1 = (Team) {
-        .name = team_1_name,
-        .score = team_1_score,
-        .id = get_dict_int_safe(iter, MESSAGE_KEY_SEND_GAME_TEAM_1_ID, 0),
-        .favorite = get_dict_int_safe(iter, MESSAGE_KEY_SEND_GAME_TEAM_1_FAVORITE, 0),
-        .winner = get_dict_int_safe(iter, MESSAGE_KEY_SEND_GAME_TEAM_1_WINNER, 0),
-        .record = GET_STR(MESSAGE_KEY_SEND_GAME_TEAM_1_RECORD, "Team1Record", t1_record),
+        .name = t1_name,
+        .score = t1_score,
+        .id = get_dict_int_safe(
+            iter, MESSAGE_KEY_SEND_GAME_TEAM_1_ID, 0),
+        .favorite = get_dict_int_safe(
+            iter, MESSAGE_KEY_SEND_GAME_TEAM_1_FAVORITE, 0),
+        .winner = get_dict_int_safe(
+            iter, MESSAGE_KEY_SEND_GAME_TEAM_1_WINNER, 0),
+        .record = GET_STR(
+            MESSAGE_KEY_SEND_GAME_TEAM_1_RECORD,
+            "Team1Record", t1_record)
     };
 
     parsed.team2 = (Team) {
-        .name = team_2_name,
-        .score = team_2_score,
-        .id = get_dict_int_safe(iter, MESSAGE_KEY_SEND_GAME_TEAM_2_ID, 0),
-        .favorite = get_dict_int_safe(iter, MESSAGE_KEY_SEND_GAME_TEAM_2_FAVORITE, 0),
-        .winner = get_dict_int_safe(iter, MESSAGE_KEY_SEND_GAME_TEAM_2_WINNER, 0),
-        .record = GET_STR(MESSAGE_KEY_SEND_GAME_TEAM_2_RECORD, "Team2Record", t2_record),
+        .name = t2_name,
+        .score = t2_score,
+        .id = get_dict_int_safe(
+            iter, MESSAGE_KEY_SEND_GAME_TEAM_2_ID, 0),
+        .favorite = get_dict_int_safe(
+            iter, MESSAGE_KEY_SEND_GAME_TEAM_2_FAVORITE, 0),
+        .winner = get_dict_int_safe(
+            iter, MESSAGE_KEY_SEND_GAME_TEAM_2_WINNER, 0),
+        .record = GET_STR(
+            MESSAGE_KEY_SEND_GAME_TEAM_2_RECORD,
+            "Team2Record", t2_record)
     };
 
-    parsed.possession = get_dict_int_safe(iter, MESSAGE_KEY_SEND_GAME_POSSESSION, 2);
-    parsed.time = GET_STR(MESSAGE_KEY_SEND_GAME_TIME, "Time", time);
-    parsed.details = GET_STR(MESSAGE_KEY_SEND_GAME_DETAILS, "Details", details);
-    parsed.broadcast = GET_STR(MESSAGE_KEY_SEND_GAME_BROADCAST, "Broadcast", broadcast);
+    parsed.possession = get_dict_int_safe(
+        iter, MESSAGE_KEY_SEND_GAME_POSSESSION, 2);
+
+    parsed.time =
+        GET_STR(MESSAGE_KEY_SEND_GAME_TIME,
+                "Time", time);
+
+    parsed.details =
+        GET_STR(MESSAGE_KEY_SEND_GAME_DETAILS,
+                "Details", details);
+
+    parsed.broadcast =
+        GET_STR(MESSAGE_KEY_SEND_GAME_BROADCAST,
+                "Broadcast", broadcast);
 
 #if defined(PBL_ROUND)
-    size_t summary_len = strlen(team_1_name) + strlen(team_1_score) + strlen(team_2_score) + strlen(team_2_name) + 6;
+    size_t summary_len =
+        strlen(t1_name) + strlen(t1_score) +
+        strlen(t2_score) + strlen(t2_name) + 6;
+
     char *summary = malloc(summary_len);
 
-    if (summary != NULL) {
-        snprintf(summary, summary_len, "%s %s - %s %s", team_1_name, team_1_score, team_2_score, team_2_name);
+    if (summary) {
+        snprintf(
+            summary,
+            summary_len,
+            "%s %s - %s %s",
+            t1_name, t1_score,
+            t2_score, t2_name
+        );
+
         parsed.summary = summary;
     } else {
-        APP_LOG(APP_LOG_LEVEL_ERROR, "DIAGNOSTIC: MALLOC FAILED for Summary");
+        APP_LOG(APP_LOG_LEVEL_ERROR,
+                "MALLOC FAILED: Summary");
+
         parsed.summary = empty_string;
     }
 #else
@@ -294,90 +618,186 @@ void game_set(Game *game, DictionaryIterator *iter) {
 #endif
 
     *game = parsed;
+
+#undef GET_STR
 }
 
-void handle_games_recieved(DictionaryIterator *iter) {
-    int request_id = get_dict_int_safe(iter, MESSAGE_KEY_REQUEST_ID, 0);
+// =========================================================
+// RECEIVE GAME LIST
+// =========================================================
 
-    if (request_id != current_request) {
+void handle_games_recieved(DictionaryIterator *iter) {
+    int request_id =
+        get_dict_int_safe(iter, MESSAGE_KEY_REQUEST_ID, -1);
+
+    if (current_list_request == -1 ||
+        request_id != current_list_request) {
         return;
     }
 
-    GamesListState data = get_dict_int_safe(iter, MESSAGE_KEY_SEND_GAME_LIST, GamesListNetworkError);
-
-    APP_LOG(APP_LOG_LEVEL_INFO, "--> RECV Item. Index: %d, State: %d, Free RAM: %d", games_count, data, (int)heap_bytes_free());
+    GamesListState data = get_dict_int_safe(
+        iter,
+        MESSAGE_KEY_SEND_GAME_LIST,
+        GamesListNetworkError
+    );
 
     if (data == GamesListNoGames) {
-        if (on_games_error) on_games_error(NoGames);
+        finish_list_error(NoGames);
         return;
     }
 
     if (data == GamesListNetworkError) {
-        if (on_games_error) on_games_error(NetworkError);
+        finish_list_error(NetworkError);
         return;
     }
 
-    if (data == GAMES_LIST_INIT_ARRAY) {
-        int total_games = get_dict_int_safe(iter, MESSAGE_KEY_SEND_GAME_ID, 0);
-        
-        APP_LOG(APP_LOG_LEVEL_INFO, "DIAGNOSTIC: Init Array. Total expected: %d", total_games);
+    // Retain your existing initialization marker.
+    if ((int)data == 4) {
+        int total_games = get_dict_int_safe(
+            iter,
+            MESSAGE_KEY_SEND_GAME_ID,
+            0
+        );
 
         free_games_array();
 
         if (total_games <= 0) {
-            expected_games = 0;
+            finish_list_error(NoGames);
             return;
         }
 
-        if (total_games > MAX_GAMES) {
-            expected_games = MAX_GAMES;
-        } else {
-            expected_games = total_games;
-        }
+        expected_games =
+            total_games > MAX_GAMES ? MAX_GAMES : total_games;
+
         return;
     }
 
-    if (games_count >= MAX_GAMES) {
-        APP_LOG(APP_LOG_LEVEL_ERROR, "CRITICAL: Prevented out-of-bounds array write! Index: %d / %d", games_count, MAX_GAMES);
-    } else {
-        Game *new_game = &s_games[games_count];
-        memset(new_game, 0, sizeof(Game));
-        
-        game_set(new_game, iter);
-        games_count++;
-
-        APP_LOG(APP_LOG_LEVEL_INFO, "DIAGNOSTIC: Stored game %d/%d. Free RAM: %d", games_count, expected_games > 0 ? expected_games : MAX_GAMES, (int)heap_bytes_free());
+    // A game item should never precede initialization.
+    if (expected_games <= 0) {
+        finish_list_error(NetworkError);
+        return;
     }
 
+    if (data != GamesListItem &&
+        data != GamesListLastItem) {
+        finish_list_error(NetworkError);
+        return;
+    }
+
+    if (games_count >= expected_games ||
+        games_count >= MAX_GAMES) {
+
+        APP_LOG(APP_LOG_LEVEL_ERROR,
+                "Unexpected extra game item");
+
+        finish_list_error(NetworkError);
+        return;
+    }
+
+    Game *new_game = &s_games[games_count];
+
+    memset(new_game, 0, sizeof(Game));
+    game_set(new_game, iter);
+    games_count++;
+
     if (data == GamesListLastItem) {
-        APP_LOG(APP_LOG_LEVEL_INFO, "DIAGNOSTIC: Last item received. Triggering UI callback.");
-        if (on_games_success) {
-            on_games_success(games_count, s_games);
-        } else {
-            APP_LOG(APP_LOG_LEVEL_ERROR, "!!! CRITICAL: UI callback pointer is NULL !!!");
+        if (games_count != expected_games) {
+            APP_LOG(APP_LOG_LEVEL_ERROR,
+                    "Incomplete list: %d of %d",
+                    games_count, expected_games);
+
+            finish_list_error(NetworkError);
+            return;
         }
+
+        finish_list_success();
     }
 }
 
-void handle_game_update_recieved(DictionaryIterator *iter) {
-    GameUpdateResult data = get_dict_int_safe(iter, MESSAGE_KEY_SEND_GAME_UPDATE, GameUpdateNetworkError);
+// =========================================================
+// RECEIVE GAME REFRESH
+// =========================================================
 
-    if (data == GameUpdateNetworkError) {
-        if (on_game_update) on_game_update(GameUpdateNetworkError);
+void handle_game_update_recieved(DictionaryIterator *iter) {
+    int request_id =
+        get_dict_int_safe(iter, MESSAGE_KEY_REQUEST_ID, -1);
+
+    if (current_update_request == -1 ||
+        request_id != current_update_request) {
+
+        APP_LOG(APP_LOG_LEVEL_WARNING,
+                "Ignoring stale game update");
         return;
     }
 
-    int game_id = get_dict_int_safe(iter, MESSAGE_KEY_SEND_GAME_ID, 0);
+    GameUpdateResult data = get_dict_int_safe(
+        iter,
+        MESSAGE_KEY_SEND_GAME_UPDATE,
+        GameUpdateNetworkError
+    );
+
+    if (data != GameUpdated) {
+        finish_update(GameUpdateNetworkError);
+        return;
+    }
+
+    int game_id = get_dict_int_safe(
+        iter,
+        MESSAGE_KEY_SEND_GAME_ID,
+        0
+    );
 
     for (int i = 0; i < games_count; i++) {
         if (s_games[i].id == game_id) {
+
+            // The Game address remains stable.
+            // Its strings are replaced synchronously.
             clear_game(&s_games[i]);
             game_set(&s_games[i], iter);
-            
-            if (on_game_update) {
-                on_game_update(GameUpdated);
-            }
+
+            finish_update(GameUpdated);
             return;
         }
+    }
+
+    APP_LOG(APP_LOG_LEVEL_WARNING,
+            "Refresh game ID not found: %d", game_id);
+
+    finish_update(GameUpdateNetworkError);
+}
+
+// =========================================================
+// OUTBOX FAILURE ROUTING
+// =========================================================
+
+void handle_game_outbox_failed(DictionaryIterator *iter) {
+    if (!iter) return;
+
+    int request_id =
+        get_dict_int_safe(iter, MESSAGE_KEY_REQUEST_ID, -1);
+
+    if (dict_find(iter, MESSAGE_KEY_REQUEST_BREAKDOWN) &&
+        request_id == current_breakdown_request) {
+
+        GameListErrorCallback callback = on_breakdown_error;
+
+        handle_cancel_breakdown_request();
+
+        if (callback) callback(ConnectionError);
+        return;
+    }
+
+    if (dict_find(iter, MESSAGE_KEY_UPDATE_GAME_SPORT) &&
+        request_id == current_update_request) {
+
+        finish_update(GameUpdateNetworkError);
+        return;
+    }
+
+    if (dict_find(iter, MESSAGE_KEY_LOAD_GAMES) &&
+        request_id == current_list_request) {
+
+        finish_list_error(ConnectionError);
+        return;
     }
 }

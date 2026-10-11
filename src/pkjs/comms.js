@@ -1,188 +1,479 @@
 const models = require('./models');
 const storage = require('./storage');
 
-console.log("--- BUSTING CACHE: VERSION 112 ---");
+console.log("--- BUSTING CACHE: VERSION 113 ---");
+
+// Pebble watch-side Game IDs use signed 32-bit integers.
+const MAX_SIGNED_ID = 2147483647;
+
+// =========================================================
+// GAME STATUS SORTING
+// =========================================================
 
 function getGameStatusWeight(game) {
-    // If not final and not scheduled, it's active. Active games have weight 0 (top).
-    // Final games have weight 1.
-    // Scheduled games have weight 1.
-    // We just want active games at top, others at the bottom sorted chronologically.
+    const time = String(game.time || "")
+        .trim()
+        .toLowerCase();
 
-    // Check if it's active
-    let isFinal = game.time === "Final" || game.time === "FT" || (game.time && game.time.toLowerCase().indexOf("final") > -1);
-    let isScheduled = game.time && (game.time.toLowerCase().indexOf("am") > -1 || game.time.toLowerCase().indexOf("pm") > -1 || game.time.toLowerCase().indexOf("tbd") > -1 || game.time.toLowerCase() === "scheduled");
+    // Completed games
+    const isFinal =
+        time === "final" ||
+        time === "ft" ||
+        time.indexOf("final") !== -1;
 
-    if (!isFinal && !isScheduled && game.time) {
-        return 0; // Active
+    // Scheduled games
+    const isScheduled =
+        time === "" ||
+        time === "scheduled" ||
+        time === "tba" ||
+        time === "tbd" ||
+        time.indexOf("am") !== -1 ||
+        time.indexOf("pm") !== -1;
+
+    // Active games first
+    if (!isFinal && !isScheduled) {
+        return 0;
     }
-    return 1; // Not active (Final or Scheduled)
+
+    return 1;
 }
+
+// =========================================================
+// SAFE GAME ID CONVERSION
+// =========================================================
 
 function safeParseInt(val) {
-    let parsed = parseInt(val);
-    if (!isNaN(parsed) && parsed > 0) return parsed;
-    
-    let hash = 0;
-    let str = String(val);
-    for (let i = 0; i < str.length; i++) {
-        hash = ((hash << 5) - hash) + str.charCodeAt(i);
-        hash |= 0; 
+    const str = String(val);
+
+    // Preserve normal ESPN numeric IDs.
+    if (/^\d+$/.test(str)) {
+        const parsed = Number(str);
+
+        if (Number.isSafeInteger(parsed) &&
+            parsed > 0 &&
+            parsed <= MAX_SIGNED_ID) {
+            return parsed;
+        }
     }
-    return Math.abs(hash) || 0;
+
+    // Deterministic fallback for non-numeric
+    // or oversized identifiers.
+    let hash = 0;
+
+    for (let i = 0; i < str.length; i++) {
+        hash = (
+            (hash << 5) -
+            hash +
+            str.charCodeAt(i)
+        ) | 0;
+    }
+
+    // Keep the generated ID within signed int32 range.
+    const result = Math.abs(hash) % MAX_SIGNED_ID;
+
+    return result || 1;
 }
+
+// =========================================================
+// GAME LIST
+// =========================================================
 
 function sendGameList(requestID, games) {
-    if (games.length == 0) {
+    if (!games || games.length === 0) {
         sendEmptyGameList(requestID);
-    } else {
-        games.sort(function(a, b) {
-            const weightA = getGameStatusWeight(a);
-            const weightB = getGameStatusWeight(b);
-            
-            if (weightA !== weightB) {
-                return weightA - weightB; 
-            }
-            
-            if (!a.startTime || isNaN(a.startTime.getTime()) || !b.startTime || isNaN(b.startTime.getTime())) return 0;
-            
-            // Sort purely chronologically (oldest to newest)
-            return a.startTime.getTime() - b.startTime.getTime();
-        });
+        return;
+    }
 
-        const watchInfo = typeof Pebble !== 'undefined' && Pebble.getActiveWatchInfo ? Pebble.getActiveWatchInfo() : null;
-        const isAplite = watchInfo && watchInfo.platform === 'aplite';
+    games.sort(function(a, b) {
+        const weightA = getGameStatusWeight(a);
+        const weightB = getGameStatusWeight(b);
 
-        if (isAplite) {
-            const MAX_GAMES = 5; 
-            if (games.length > MAX_GAMES) {
-                console.log("Aplite Detected: Capping payload at " + MAX_GAMES + " games.");
-                games = games.slice(0, MAX_GAMES);
-            }
+        if (weightA !== weightB) {
+            return weightA - weightB;
         }
 
-        const initDict = {
-            'REQUEST_ID': requestID,
-            'SEND_GAME_LIST': models.gameslistdata.INIT_ARRAY, 
-            'SEND_GAME_ID': games.length 
-        };
+        const validA =
+            a.startTime instanceof Date &&
+            !isNaN(a.startTime.getTime());
 
-        const favorites = storage.storedFavorites();
+        const validB =
+            b.startTime instanceof Date &&
+            !isNaN(b.startTime.getTime());
 
-        Pebble.sendAppMessage(initDict, function() {
-            sendGameListItem(requestID, games, 0, favorites);
-        }, function() {
-            console.log('Failed to initialize array on watch');
-            sendGameListError(requestID); 
-        });
+        if (!validA || !validB) return 0;
+
+        return a.startTime.getTime() -
+               b.startTime.getTime();
+    });
+
+    const watchInfo =
+        typeof Pebble !== 'undefined' &&
+        typeof Pebble.getActiveWatchInfo === 'function'
+            ? Pebble.getActiveWatchInfo()
+            : null;
+
+    const platform = watchInfo
+        ? String(watchInfo.platform || "").toLowerCase()
+        : "";
+
+    let maxGames = 50;
+
+    if (platform === "aplite") {
+        maxGames = 5;
+    } else if (
+        platform === "emery" ||
+        platform === "gabbro"
+    ) {
+        maxGames = 150;
     }
+
+    if (games.length > maxGames) {
+        console.log(
+            "Capping transmitted games at " + maxGames
+        );
+
+        games = games.slice(0, maxGames);
+    }
+
+    const initDict = {
+        REQUEST_ID: requestID,
+        SEND_GAME_LIST: models.gameslistdata.INIT_ARRAY,
+        SEND_GAME_ID: games.length
+    };
+
+    const favorites = storage.storedFavorites();
+
+    Pebble.sendAppMessage(
+        initDict,
+
+        function() {
+            sendGameListItem(
+                requestID,
+                games,
+                0,
+                favorites
+            );
+        },
+
+        function(error) {
+            console.log(
+                "[GAME LIST] Initialization failed: " +
+                JSON.stringify(error)
+            );
+
+            sendGameListError(requestID);
+        }
+    );
 }
 
-function sendGameListItem(requestID, games, index, favorites) {
+// =========================================================
+// SEND ONE GAME AT A TIME
+// =========================================================
+
+function sendGameListItem(
+    requestID,
+    games,
+    index,
+    favorites
+) {
+    if (index >= games.length) return;
+
     const game = games[index];
 
-    const team1Favorite = favorites.some(favoriteTeam => game.sport == favoriteTeam.sport && game.team1.id == favoriteTeam.teamID);
-    const team2Favorite = favorites.some(favoriteTeam => game.sport == favoriteTeam.sport && game.team2.id == favoriteTeam.teamID);
-    
-    const isLastItem = index == games.length - 1;
+    const team1Favorite = favorites.some(
+        favorite =>
+            game.sport == favorite.sport &&
+            game.team1.id == favorite.teamID
+    );
+
+    const team2Favorite = favorites.some(
+        favorite =>
+            game.sport == favorite.sport &&
+            game.team2.id == favorite.teamID
+    );
+
+    const isLastItem =
+        index === games.length - 1;
 
     const dict = {
-        'REQUEST_ID': requestID,
-        'SEND_GAME_LIST': isLastItem ? models.gameslistdata.LAST_LIST_ITEM : models.gameslistdata.LIST_ITEM,
-        'SEND_GAME_ID': safeParseInt(game.id),
-        'SEND_GAME_SPORT': game.sport,
-        'SEND_GAME_LEAGUE': String(game.league || "").substring(0, 15), 
-        'SEND_GAME_TEAM_1_NAME': String(game.team1.name || "").substring(0, 5),
-        'SEND_GAME_TEAM_2_NAME': String(game.team2.name || "").substring(0, 5),
-        'SEND_GAME_TEAM_1_ID': safeParseInt(game.team1.id),
-        'SEND_GAME_TEAM_2_ID': safeParseInt(game.team2.id),
-        'SEND_GAME_TEAM_1_SCORE': String(game.score1 || "").substring(0, 10),
-        'SEND_GAME_TEAM_2_SCORE': String(game.score2 || "").substring(0, 10),
-        'SEND_GAME_TEAM_1_RECORD': String(game.team1.record || "").substring(0, 10),
-        'SEND_GAME_TEAM_2_RECORD': String(game.team2.record || "").substring(0, 10),
-        'SEND_GAME_TEAM_1_WINNER': game.team1.winner ? 1 : 0,
-        'SEND_GAME_TEAM_2_WINNER': game.team2.winner ? 1 : 0,
-        'SEND_GAME_TEAM_1_FAVORITE': team1Favorite ? 1 : 0,
-        'SEND_GAME_TEAM_2_FAVORITE': team2Favorite ? 1 : 0,
-        'SEND_GAME_POSSESSION': game.possession,
-        'SEND_GAME_TIME': String(game.time || "").substring(0, 20),
-        'SEND_GAME_DETAILS': String(game.details || "").substring(0, 30),
-        'SEND_GAME_BROADCAST': String(game.broadcast || "").substring(0, 15) 
+        REQUEST_ID: requestID,
+
+        SEND_GAME_LIST: isLastItem
+            ? models.gameslistdata.LAST_LIST_ITEM
+            : models.gameslistdata.LIST_ITEM,
+
+        SEND_GAME_ID: safeParseInt(game.id),
+        SEND_GAME_SPORT: game.sport,
+
+        SEND_GAME_LEAGUE:
+            String(game.league || "").substring(0, 15),
+
+        SEND_GAME_TEAM_1_NAME:
+            String(game.team1.name || "").substring(0, 5),
+
+        SEND_GAME_TEAM_2_NAME:
+            String(game.team2.name || "").substring(0, 5),
+
+        SEND_GAME_TEAM_1_ID:
+            safeParseInt(game.team1.id),
+
+        SEND_GAME_TEAM_2_ID:
+            safeParseInt(game.team2.id),
+
+        SEND_GAME_TEAM_1_SCORE:
+            String(game.score1 || "").substring(0, 10),
+
+        SEND_GAME_TEAM_2_SCORE:
+            String(game.score2 || "").substring(0, 10),
+
+        SEND_GAME_TEAM_1_RECORD:
+            String(game.team1.record || "").substring(0, 10),
+
+        SEND_GAME_TEAM_2_RECORD:
+            String(game.team2.record || "").substring(0, 10),
+
+        SEND_GAME_TEAM_1_WINNER:
+            game.team1.winner ? 1 : 0,
+
+        SEND_GAME_TEAM_2_WINNER:
+            game.team2.winner ? 1 : 0,
+
+        SEND_GAME_TEAM_1_FAVORITE:
+            team1Favorite ? 1 : 0,
+
+        SEND_GAME_TEAM_2_FAVORITE:
+            team2Favorite ? 1 : 0,
+
+        SEND_GAME_POSSESSION: game.possession,
+
+        SEND_GAME_TIME:
+            String(game.time || "").substring(0, 20),
+
+        SEND_GAME_DETAILS:
+            String(game.details || "").substring(0, 30),
+
+        SEND_GAME_BROADCAST:
+            String(game.broadcast || "").substring(0, 15)
     };
 
-    Pebble.sendAppMessage(dict, function () {
-        index++;
-        if (index < games.length) {
-            sendGameListItem(requestID, games, index, favorites);
+    Pebble.sendAppMessage(
+        dict,
+
+        function() {
+            if (index + 1 < games.length) {
+                sendGameListItem(
+                    requestID,
+                    games,
+                    index + 1,
+                    favorites
+                );
+            }
+        },
+
+        function(error) {
+            console.log(
+                "[GAME LIST] Transmission failed at " +
+                index + ": " + JSON.stringify(error)
+            );
+
+            sendGameListError(requestID);
         }
-    }, function () {
-        console.log('Item transmission failed at index: ' + index);
-        sendGameListError(requestID); 
-    });
+    );
 }
+
+// =========================================================
+// EMPTY GAME LIST
+// =========================================================
 
 function sendEmptyGameList(requestID) {
-    const dict = {
-        'REQUEST_ID': requestID,
-        'SEND_GAME_LIST': models.gameslistdata.NO_GAMES
-    };
-    Pebble.sendAppMessage(dict, function () {}, function () {});
+    Pebble.sendAppMessage(
+        {
+            REQUEST_ID: requestID,
+            SEND_GAME_LIST: models.gameslistdata.NO_GAMES
+        },
+
+        function() {},
+
+        function(error) {
+            console.log(
+                "[GAME LIST] Empty response failed: " +
+                JSON.stringify(error)
+            );
+        }
+    );
 }
 
+// =========================================================
+// GAME LIST ERROR
+// =========================================================
+
 function sendGameListError(requestID) {
-    const dict = {
-        'REQUEST_ID': requestID,
-        'SEND_GAME_LIST': models.gameslistdata.NETWORK_ERROR
-    };
-    Pebble.sendAppMessage(dict, function () {}, function () {});
+    Pebble.sendAppMessage(
+        {
+            REQUEST_ID: requestID,
+            SEND_GAME_LIST: models.gameslistdata.NETWORK_ERROR
+        },
+
+        function() {},
+
+        function(error) {
+            console.log(
+                "[GAME LIST] Error response failed: " +
+                JSON.stringify(error)
+            );
+        }
+    );
 }
+
+// =========================================================
+// GAME REFRESH
+// =========================================================
 
 function sendGameUpdate(requestID, game) {
     const favorites = storage.storedFavorites();
-    const team1Favorite = favorites.some(favoriteTeam => game.sport == favoriteTeam.sport && game.team1.id == favoriteTeam.teamID);
-    const team2Favorite = favorites.some(favoriteTeam => game.sport == favoriteTeam.sport && game.team2.id == favoriteTeam.teamID);
+
+    const team1Favorite = favorites.some(
+        favorite =>
+            game.sport == favorite.sport &&
+            game.team1.id == favorite.teamID
+    );
+
+    const team2Favorite = favorites.some(
+        favorite =>
+            game.sport == favorite.sport &&
+            game.team2.id == favorite.teamID
+    );
 
     const dict = {
-        'REQUEST_ID': requestID,
-        'SEND_GAME_UPDATE': models.updategamedata.UPDATE_GAME,
-        'SEND_GAME_ID': safeParseInt(game.id),
-        'SEND_GAME_SPORT': game.sport,
-        'SEND_GAME_LEAGUE': String(game.league || "").substring(0, 15), 
-        'SEND_GAME_TEAM_1_NAME': String(game.team1.name || "").substring(0, 5),
-        'SEND_GAME_TEAM_2_NAME': String(game.team2.name || "").substring(0, 5),
-        'SEND_GAME_TEAM_1_ID': safeParseInt(game.team1.id),
-        'SEND_GAME_TEAM_2_ID': safeParseInt(game.team2.id),
-        'SEND_GAME_TEAM_1_SCORE': String(game.score1 || "").substring(0, 10),
-        'SEND_GAME_TEAM_2_SCORE': String(game.score2 || "").substring(0, 10),
-        'SEND_GAME_TEAM_1_RECORD': String(game.team1.record || "").substring(0, 10),
-        'SEND_GAME_TEAM_2_RECORD': String(game.team2.record || "").substring(0, 10),
-        'SEND_GAME_TEAM_1_WINNER': game.team1.winner ? 1 : 0,
-        'SEND_GAME_TEAM_2_WINNER': game.team2.winner ? 1 : 0,
-        'SEND_GAME_TEAM_1_FAVORITE': team1Favorite ? 1 : 0,
-        'SEND_GAME_TEAM_2_FAVORITE': team2Favorite ? 1 : 0,
-        'SEND_GAME_POSSESSION': game.possession,
-        'SEND_GAME_TIME': String(game.time || "").substring(0, 20),
-        'SEND_GAME_DETAILS': String(game.details || "").substring(0, 30),
-        'SEND_GAME_BROADCAST': String(game.broadcast || "").substring(0, 15) 
+        REQUEST_ID: requestID,
+
+        SEND_GAME_UPDATE:
+            models.updategamedata.UPDATE_GAME,
+
+        SEND_GAME_ID: safeParseInt(game.id),
+        SEND_GAME_SPORT: game.sport,
+
+        SEND_GAME_LEAGUE:
+            String(game.league || "").substring(0, 15),
+
+        SEND_GAME_TEAM_1_NAME:
+            String(game.team1.name || "").substring(0, 5),
+
+        SEND_GAME_TEAM_2_NAME:
+            String(game.team2.name || "").substring(0, 5),
+
+        SEND_GAME_TEAM_1_ID:
+            safeParseInt(game.team1.id),
+
+        SEND_GAME_TEAM_2_ID:
+            safeParseInt(game.team2.id),
+
+        SEND_GAME_TEAM_1_SCORE:
+            String(game.score1 || "").substring(0, 10),
+
+        SEND_GAME_TEAM_2_SCORE:
+            String(game.score2 || "").substring(0, 10),
+
+        SEND_GAME_TEAM_1_RECORD:
+            String(game.team1.record || "").substring(0, 10),
+
+        SEND_GAME_TEAM_2_RECORD:
+            String(game.team2.record || "").substring(0, 10),
+
+        SEND_GAME_TEAM_1_WINNER:
+            game.team1.winner ? 1 : 0,
+
+        SEND_GAME_TEAM_2_WINNER:
+            game.team2.winner ? 1 : 0,
+
+        SEND_GAME_TEAM_1_FAVORITE:
+            team1Favorite ? 1 : 0,
+
+        SEND_GAME_TEAM_2_FAVORITE:
+            team2Favorite ? 1 : 0,
+
+        SEND_GAME_POSSESSION: game.possession,
+
+        SEND_GAME_TIME:
+            String(game.time || "").substring(0, 20),
+
+        SEND_GAME_DETAILS:
+            String(game.details || "").substring(0, 30),
+
+        SEND_GAME_BROADCAST:
+            String(game.broadcast || "").substring(0, 15)
     };
-    Pebble.sendAppMessage(dict, function () {}, function () {});
+
+    Pebble.sendAppMessage(
+        dict,
+
+        function() {
+            console.log(
+                "[GAME UPDATE] Delivered successfully"
+            );
+        },
+
+        function(error) {
+            console.log(
+                "[GAME UPDATE] Delivery failed: " +
+                JSON.stringify(error)
+            );
+
+            // Best-effort failure notification.
+            sendGameUpdateError(requestID);
+        }
+    );
 }
+
+// =========================================================
+// REFRESH ERROR
+// =========================================================
 
 function sendGameUpdateError(requestID) {
-    const dict = {
-        'REQUEST_ID': requestID,
-        'SEND_GAME_UPDATE': models.updategamedata.NETWORK_ERROR
-    };
-    Pebble.sendAppMessage(dict, function () {}, function () {});
+    Pebble.sendAppMessage(
+        {
+            REQUEST_ID: requestID,
+
+            SEND_GAME_UPDATE:
+                models.updategamedata.NETWORK_ERROR
+        },
+
+        function() {},
+
+        function(error) {
+            console.log(
+                "[GAME UPDATE] Error notification failed: " +
+                JSON.stringify(error)
+            );
+        }
+    );
 }
 
+// =========================================================
+// FAVORITES
+// =========================================================
+
 function sendFavoritesResult(requestID, result) {
-    const dict = {
-        'REQUEST_ID': requestID,
-        'CONFIRM_FAVORITE': result
-    };
-    Pebble.sendAppMessage(dict, function () {}, function () {});
+    Pebble.sendAppMessage(
+        {
+            REQUEST_ID: requestID,
+            CONFIRM_FAVORITE: result
+        },
+
+        function() {},
+
+        function(error) {
+            console.log(
+                "[FAVORITES] Confirmation failed: " +
+                JSON.stringify(error)
+            );
+        }
+    );
 }
+
+// =========================================================
+// EXPORTS
+// =========================================================
 
 module.exports = {
     sendGameList,
