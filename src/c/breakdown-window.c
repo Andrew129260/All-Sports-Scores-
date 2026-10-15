@@ -8,6 +8,7 @@
 
 static Window *s_window = NULL;
 
+static StatusBarLayer *s_status_bar = NULL;
 static TextLayer *s_text_layer = NULL;
 static Layer *s_header_layer = NULL;
 
@@ -63,7 +64,26 @@ static uint32_t get_sport_icon(Sport sport) {
 // SPORT TITLES
 // =========================================================
 
+// =========================================================
+// SPORT TITLES
+// =========================================================
+
 static const char *get_breakdown_title(Sport sport) {
+#if defined(PBL_ROUND)
+    switch (sport) {
+        case SportNFL: return "NFL INFO";
+        case SportMLB: return "MLB INFO";
+        case SportNHL: return "NHL INFO";
+        case SportNBA: return "NBA INFO";
+        case SportMLS: return "SOCCER INFO";
+        case SportRugby: return "RUGBY INFO";
+        case SportCricket: return "CRICKET INFO";
+        case SportTennis: return "TENNIS INFO";
+        case SportAFL: return "AFL INFO";
+        case SportMMA: return "MMA INFO";
+        default: return "INFO";
+    }
+#else
     switch (sport) {
         case SportNFL: return "NFL BREAKDOWN";
         case SportMLB: return "MLB BREAKDOWN";
@@ -77,6 +97,7 @@ static const char *get_breakdown_title(Sport sport) {
         case SportMMA: return "MMA BREAKDOWN";
         default: return "BREAKDOWN";
     }
+#endif
 }
 
 // =========================================================
@@ -88,6 +109,16 @@ static void window_load(Window *window) {
         window_get_root_layer(window);
 
     GRect bounds = layer_get_bounds(window_layer);
+
+    s_status_bar = status_bar_layer_create();
+
+    if (s_status_bar) {
+        status_bar_layer_set_colors(
+            s_status_bar,
+            GColorDukeBlue,
+            GColorWhite
+        );
+    }
 
     s_header_layer = create_header_layer(
         bounds,
@@ -104,6 +135,13 @@ static void window_load(Window *window) {
 
         header_height =
             layer_get_bounds(s_header_layer).size.h;
+    }
+
+    if (s_status_bar) {
+        layer_add_child(
+            window_layer,
+            status_bar_layer_get_layer(s_status_bar)
+        );
     }
 
     GRect text_bounds = GRect(
@@ -166,6 +204,11 @@ static void window_load(Window *window) {
 // =========================================================
 
 static void window_unload(Window *window) {
+    if (s_status_bar) {
+        status_bar_layer_destroy(s_status_bar);
+        s_status_bar = NULL;
+    }
+
     if (s_text_layer) {
         text_layer_destroy(s_text_layer);
         s_text_layer = NULL;

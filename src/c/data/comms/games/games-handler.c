@@ -346,8 +346,10 @@ void handle_request_breakdown(
     Tuplet sport_tuple =
         TupletInteger(MESSAGE_KEY_REQUEST_BREAKDOWN, game->sport);
 
+    // Use SEND_GAME_ID instead of UPDATE_GAME_ID so breakdown requests
+    // do not trigger the top-level JS game refresh handler.
     Tuplet game_tuple =
-        TupletInteger(MESSAGE_KEY_UPDATE_GAME_ID, game->id);
+        TupletInteger(MESSAGE_KEY_SEND_GAME_ID, game->id);
 
     Tuplet request_tuple =
         TupletInteger(MESSAGE_KEY_REQUEST_ID, request_id);

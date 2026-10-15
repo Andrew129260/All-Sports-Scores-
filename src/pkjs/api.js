@@ -78,37 +78,26 @@ let gameScoreboardUrls = {};
  * Each entry is timestamped individually and pruned after 21 days. That is
  * intentionally a little longer than the 14-day Past window.
  */
-const CRICKET_SERIES_CACHE_KEY =
-    "cricket_series_cache_v1";
-
-const CRICKET_SERIES_CACHE_MAX_AGE_MS =
-    21 * 24 * 60 * 60 * 1000;
-
-const CRICKET_SERIES_CACHE_MAX_ENTRIES =
-    64;
+const CRICKET_SERIES_CACHE_KEY = "cricket_series_cache_v1";
+const CRICKET_SERIES_CACHE_MAX_AGE_MS = 21 * 24 * 60 * 60 * 1000;
+const CRICKET_SERIES_CACHE_MAX_ENTRIES = 64;
 
 
 function loadCricketSeriesCache() {
     try {
-        const raw =
-            localStorage.getItem(
-                CRICKET_SERIES_CACHE_KEY
-            );
+        const raw = localStorage.getItem(CRICKET_SERIES_CACHE_KEY);
 
         if (!raw) {
             return [];
         }
 
-        const parsed =
-            JSON.parse(raw);
+        const parsed = JSON.parse(raw);
 
         if (!Array.isArray(parsed)) {
             return [];
         }
 
-        const cutoff =
-            Date.now() -
-            CRICKET_SERIES_CACHE_MAX_AGE_MS;
+        const cutoff = Date.now() - CRICKET_SERIES_CACHE_MAX_AGE_MS;
 
         return parsed
             .filter(entry => {
@@ -119,45 +108,29 @@ function loadCricketSeriesCache() {
                     entry.seenAt >= cutoff
                 );
             })
-            .slice(
-                0,
-                CRICKET_SERIES_CACHE_MAX_ENTRIES
-            );
+            .slice(0, CRICKET_SERIES_CACHE_MAX_ENTRIES);
 
     } catch (e) {
-        console.log(
-            "[CRICKET CACHE] Load failed: " +
-            e
-        );
-
+        console.log("[CRICKET CACHE] Load failed: " + e);
         return [];
     }
 }
 
 
 function saveCricketSeriesCache(activeLeagues) {
-    if (
-        !activeLeagues ||
-        activeLeagues.length === 0
-    ) {
+    if (!activeLeagues || activeLeagues.length === 0) {
         return;
     }
 
-    const now =
-        Date.now();
-
+    const now = Date.now();
     const byId = {};
-
 
     /*
      * Start with still-valid cached entries.
      */
-    loadCricketSeriesCache()
-        .forEach(entry => {
-            byId[String(entry.id)] =
-                entry;
-        });
-
+    loadCricketSeriesCache().forEach(entry => {
+        byId[String(entry.id)] = entry;
+    });
 
     /*
      * Refresh every series ESPN currently reports.
@@ -167,39 +140,23 @@ function saveCricketSeriesCache(activeLeagues) {
             return;
         }
 
-        const id =
-            String(league.id);
+        const id = String(league.id);
 
         byId[id] = {
-            id:
-                id,
-
+            id: id,
             league:
                 league.abbreviation ||
                 league.shortName ||
                 league.name ||
                 "International",
-
-            seenAt:
-                now
+            seenAt: now
         };
     });
 
-
-    const merged =
-        Object.keys(byId)
-            .map(id => byId[id])
-            .sort((a, b) => {
-                return (
-                    b.seenAt -
-                    a.seenAt
-                );
-            })
-            .slice(
-                0,
-                CRICKET_SERIES_CACHE_MAX_ENTRIES
-            );
-
+    const merged = Object.keys(byId)
+        .map(id => byId[id])
+        .sort((a, b) => b.seenAt - a.seenAt)
+        .slice(0, CRICKET_SERIES_CACHE_MAX_ENTRIES);
 
     try {
         localStorage.setItem(
@@ -214,10 +171,7 @@ function saveCricketSeriesCache(activeLeagues) {
         );
 
     } catch (e) {
-        console.log(
-            "[CRICKET CACHE] Save failed: " +
-            e
-        );
+        console.log("[CRICKET CACHE] Save failed: " + e);
     }
 }
 
@@ -292,22 +246,13 @@ let s_timeline_sync_timer = null;
 // PUBLIC GAME REQUEST
 // =========================================================
 
-function getGames(
-    sport,
-    leagueIndex,
-    onLoad,
-    onError
-) {
-    if (
-        sport ==
-        models.sports.FAVORITES
-    ) {
+function getGames(sport, leagueIndex, onLoad, onError) {
+    if (sport == models.sports.FAVORITES) {
         getFavoriteGames(
             storage.storedFavorites(),
             onLoad,
             onError
         );
-
     } else {
         getGamesForSport(
             sport,
@@ -323,196 +268,183 @@ function getGames(
 // FAVORITE GAMES
 // =========================================================
 
-function getFavoriteGames(
-    favorites,
-    onLoad,
-    onError
-) {
+function getFavoriteGames(favorites, onLoad, onError) {
     /*
      * An empty Favorites list is a valid empty state, not a network error.
      */
-    if (
-        favorites.length == 0
-    ) {
+    if (favorites.length == 0) {
         onLoad([]);
         return;
     }
 
-
     /*
      * Group favorites by sport so each sport can be loaded once.
      */
-    const sportGroups =
-        utils.groupBy(
-            favorites,
-            favoriteItem =>
-                favoriteItem.sport
-        );
+    const sportGroups = utils.groupBy(
+        favorites,
+        favoriteItem => favoriteItem.sport
+    );
 
-
-    const favoriteSports =
-        Object.keys(sportGroups)
-            .map(
-                key =>
-                    parseInt(
-                        key,
-                        10
-                    )
-            );
-
+    const favoriteSports = Object.keys(sportGroups)
+        .map(key => parseInt(key, 10));
 
     const favoriteGames = [];
     const loadedSports = [];
 
     let hasError = false;
 
+    Object.values(sportGroups).forEach(sportGroup => {
+        const sport = sportGroup[0].sport;
 
-    Object.values(sportGroups)
-        .forEach(
-            sportGroup => {
-
-                const sport =
-                    sportGroup[0].sport;
-
-
-                const rawTeamIDs =
-                    sportGroup.map(
-                        favoriteItem =>
-                            favoriteItem.teamID
-                    );
-
-
-                /*
-                 * Legacy FIBA migration:
-                 *
-                 * Older builds used the removed 14,000,000 offset.
-                 * Unified FIBA now uses 13,000,000.
-                 */
-                const teamIDs =
-                    rawTeamIDs.map(id => {
-
-                        const parsedId =
-                            parseInt(
-                                id,
-                                10
-                            );
-
-
-                        if (
-                            !isNaN(parsedId) &&
-                            parsedId >= 14000000 &&
-                            parsedId < 15000000
-                        ) {
-                            return String(
-                                parsedId -
-                                1000000
-                            );
-                        }
-
-
-                        return id;
-                    });
-
-
-                /*
-                 * leagueIndex=null requests broad/current coverage.
-                 *
-                 * getGamesForSport() strips explicit Past endpoints for this
-                 * path, so Favorites never fires all the historical requests.
-                 */
-                getGamesForSport(
-                    sport,
-                    null,
-
-                    games => {
-
-                        const filtered =
-                            games.filter(
-                                game =>
-                                    teamIDs.includes(
-                                        game.team1.id
-                                    ) ||
-                                    teamIDs.includes(
-                                        game.team2.id
-                                    )
-                            );
-
-
-                        favoriteGames.push(
-                            ...filtered
-                        );
-
-
-                        loadedSports.push(
-                            sport
-                        );
-
-
-                        if (
-                            favoriteSports.every(
-                                s =>
-                                    loadedSports.includes(s)
-                            )
-                        ) {
-                            if (
-                                favoriteGames.length > 0 ||
-                                !hasError
-                            ) {
-                                updateTimelinePins(
-                                    favoriteGames
-                                );
-
-                                onLoad(
-                                    favoriteGames
-                                );
-
-                            } else {
-                                onError();
-                            }
-                        }
-                    },
-
-
-                    () => {
-
-                        hasError = true;
-
-                        loadedSports.push(
-                            sport
-                        );
-
-
-                        if (
-                            favoriteSports.every(
-                                s =>
-                                    loadedSports.includes(s)
-                            )
-                        ) {
-                            if (
-                                favoriteGames.length > 0
-                            ) {
-                                updateTimelinePins(
-                                    favoriteGames
-                                );
-
-                                onLoad(
-                                    favoriteGames
-                                );
-
-                            } else {
-                                onError();
-                            }
-                        }
-                    },
-
-
-                    /*
-                     * Filter Favorites BEFORE applying the watch game cap.
-                     */
-                    teamIDs
-                );
-            }
+        const rawTeamIDs = sportGroup.map(
+            favoriteItem => favoriteItem.teamID
         );
+
+        /*
+         * Legacy FIBA migration:
+         *
+         * Older builds used the removed 14,000,000 offset.
+         * Unified FIBA now uses 13,000,000.
+         */
+        const teamIDs = rawTeamIDs.map(id => {
+            const parsedId = parseInt(id, 10);
+
+            if (
+                !isNaN(parsedId) &&
+                parsedId >= 14000000 &&
+                parsedId < 15000000
+            ) {
+                return String(parsedId - 1000000);
+            }
+
+            return id;
+        });
+
+        /*
+         * leagueIndex=null requests broad/current coverage.
+         *
+         * getGamesForSport() strips explicit Past endpoints for this
+         * path, so Favorites never fires all the historical requests.
+         */
+        getGamesForSport(
+            sport,
+            null,
+            games => {
+                const filtered = games.filter(
+                    game =>
+                        teamIDs.includes(game.team1.id) ||
+                        teamIDs.includes(game.team2.id)
+                );
+
+                favoriteGames.push(...filtered);
+                loadedSports.push(sport);
+
+                if (favoriteSports.every(s => loadedSports.includes(s))) {
+                    if (favoriteGames.length > 0 || !hasError) {
+                        updateTimelinePins(favoriteGames);
+                        onLoad(favoriteGames);
+                    } else {
+                        onError();
+                    }
+                }
+            },
+            () => {
+                hasError = true;
+                loadedSports.push(sport);
+
+                if (favoriteSports.every(s => loadedSports.includes(s))) {
+                    if (favoriteGames.length > 0) {
+                        updateTimelinePins(favoriteGames);
+                        onLoad(favoriteGames);
+                    } else {
+                        onError();
+                    }
+                }
+            },
+            /*
+             * Filter Favorites BEFORE applying the watch game cap.
+             */
+            teamIDs
+        );
+    });
+}
+
+
+// =========================================================
+// SHARED TENNIS & SCORE HELPERS
+// =========================================================
+
+/*
+ * ESPN Tennis scoreboards frequently omit the top-level `competitor.score`
+ * field (or leave it as "0") and instead mark won sets with `line.winner`
+ * inside `competitor.linescores`.
+ *
+ * Both parseEvent() and getGameBreakdown() share this helper so the
+ * main score screen and the Breakdown header always agree.
+ */
+function getTennisCompetitorScore(competitor) {
+    if (!competitor) {
+        return "0";
+    }
+
+    let suppliedScore = "";
+
+    if (
+        competitor.score != null &&
+        String(competitor.score).trim() !== ""
+    ) {
+        suppliedScore = String(competitor.score).trim();
+    }
+
+    if (
+        competitor.linescores &&
+        competitor.linescores.length > 0
+    ) {
+        let wonSets = 0;
+
+        competitor.linescores.forEach(line => {
+            if (line && line.winner) {
+                wonSets++;
+            }
+        });
+
+        /*
+         * Prefer ESPN's aggregate score when it looks useful.
+         * Otherwise reconstruct it from completed sets.
+         */
+        if (
+            suppliedScore !== "" &&
+            suppliedScore !== "0"
+        ) {
+            return suppliedScore;
+        }
+
+        if (wonSets > 0) {
+            return String(wonSets);
+        }
+    }
+
+    return suppliedScore || "0";
+}
+
+
+/*
+ * Extract a competitor's record summary string if ESPN provides one.
+ */
+function getCompetitorRecordSummary(competitor) {
+    if (!competitor) {
+        return "";
+    }
+
+    if (competitor.records && competitor.records.length > 0) {
+        return competitor.records[0].summary || "";
+    }
+
+    if (competitor.record && competitor.record.length > 0) {
+        return competitor.record[0].summary || "";
+    }
+
+    return "";
 }
 
 
@@ -534,50 +466,25 @@ function getFavoriteGames(
  * the game.
  */
 function stripCacheBuster(url) {
-    if (
-        !url ||
-        url.indexOf('?') === -1
-    ) {
+    if (!url || url.indexOf('?') === -1) {
         return url;
     }
 
+    let parts = url.split('?');
+    let baseUrl = parts.shift();
+    let query = parts.join('?');
 
-    let parts =
-        url.split('?');
+    let params = query
+        .split('&')
+        .filter(param => param.split('=')[0] !== 't');
 
-    let baseUrl =
-        parts.shift();
-
-    let query =
-        parts.join('?');
-
-
-    let params =
-        query
-            .split('&')
-            .filter(param => {
-                return (
-                    param.split('=')[0] !==
-                    't'
-                );
-            });
-
-
-    return (
-        params.length > 0
-            ? baseUrl +
-                '?' +
-                params.join('&')
-            : baseUrl
-    );
+    return params.length > 0
+        ? baseUrl + '?' + params.join('&')
+        : baseUrl;
 }
 
 
-function getSummaryUrl(
-    sport,
-    leagueName,
-    gameId
-) {
+function getSummaryUrl(sport, leagueName, gameId) {
     /*
      * Tennis, MMA and Cricket are handled from scoreboard-shaped responses.
      *
@@ -588,53 +495,32 @@ function getSummaryUrl(
         sport == models.sports.MMA ||
         sport == models.sports.CRICKET
     ) {
-        if (
-            gameScoreboardUrls[gameId]
-        ) {
-            return (
-                gameScoreboardUrls[gameId]
-            );
+        if (gameScoreboardUrls[gameId]) {
+            return gameScoreboardUrls[gameId];
         }
     }
 
+    let endpoints = getEndpointsForSport(sport);
 
-    let endpoints =
-        getEndpointsForSport(
-            sport
-        );
-
-
-    let target =
-        endpoints.find(
-            endpoint =>
-                endpoint.league ===
-                leagueName
-        );
-
+    let target = endpoints.find(
+        endpoint => endpoint.league === leagueName
+    );
 
     /*
      * Safe fallback for an older/saved game whose exact league label is not
      * available anymore.
      */
-    if (
-        !target &&
-        endpoints.length > 0
-    ) {
-        target =
-            endpoints[0];
+    if (!target && endpoints.length > 0) {
+        target = endpoints[0];
     }
-
 
     if (!target) {
         return null;
     }
 
-
-    let baseUrl =
-        Array.isArray(target.url)
-            ? target.url[0]
-            : target.url;
-
+    let baseUrl = Array.isArray(target.url)
+        ? target.url[0]
+        : target.url;
 
     if (
         sport == models.sports.TENNIS ||
@@ -647,22 +533,14 @@ function getSummaryUrl(
          * A Past game found during this JS session already has the precise
          * single-day URL cached above. This static URL is only the fallback.
          */
-        return (
-            baseUrl +
-            "/scoreboard"
-        );
+        return baseUrl + "/scoreboard";
     }
-
 
     /*
      * Traditional team sports generally expose richer Game Info through
      * ESPN's /summary endpoint.
      */
-    return (
-        baseUrl +
-        "/summary?event=" +
-        gameId
-    );
+    return baseUrl + "/summary?event=" + gameId;
 }
 
 
@@ -681,14 +559,9 @@ function breakdownLineScoreLabel(sport) {
         return "Innings";
     }
 
-
-    if (
-        sport ==
-        models.sports.TENNIS
-    ) {
+    if (sport == models.sports.TENNIS) {
         return "Sets";
     }
-
 
     if (
         sport == models.sports.NFL ||
@@ -698,14 +571,9 @@ function breakdownLineScoreLabel(sport) {
         return "Quarters";
     }
 
-
-    if (
-        sport ==
-        models.sports.MMA
-    ) {
+    if (sport == models.sports.MMA) {
         return "Rounds";
     }
-
 
     /*
      * NHL, Soccer and Rugby are safely described as periods.
@@ -718,61 +586,51 @@ function breakdownLineScoreLabel(sport) {
  * Convert one ESPN linescore object into compact watch-friendly text.
  *
  * Most sports expose displayValue/value directly. Cricket can expose
- * runs/wickets separately, which produces a much more useful innings line.
+ * runs/wickets separately, and also inserts 0/0 placeholder entries for the
+ * fielding side during an opponent's batting innings.
  */
-function formatBreakdownLineScore(
-    sport,
-    line
-) {
+function formatBreakdownLineScore(sport, line) {
     if (!line) {
         return "";
     }
 
+    if (sport == models.sports.CRICKET) {
+        if (line.runs != null) {
+            const runs = Number(line.runs);
+            const wickets = line.wickets != null ? Number(line.wickets) : 0;
+            const overs = line.overs != null ? Number(line.overs) : 0;
 
-    if (
-        sport ==
-        models.sports.CRICKET
-    ) {
-        if (
-            line.runs != null
-        ) {
-            let text =
-                String(
-                    line.runs
-                );
-
-
+            /*
+             * Ignore empty fielding placeholders (0 runs, 0 wickets, 0 overs,
+             * and explicitly marked as non-batting) so Cricket breakdowns only
+             * list actual batting innings.
+             */
             if (
-                line.wickets != null
+                runs === 0 &&
+                wickets === 0 &&
+                overs === 0 &&
+                line.isBatting === false
             ) {
-                text +=
-                    "/" +
-                    line.wickets;
+                return "";
             }
 
+            let text = String(line.runs);
+
+            if (line.wickets != null) {
+                text += "/" + line.wickets;
+            }
 
             return text;
         }
     }
 
-
-    if (
-        line.displayValue != null
-    ) {
-        return String(
-            line.displayValue
-        );
+    if (line.displayValue != null) {
+        return String(line.displayValue);
     }
 
-
-    if (
-        line.value != null
-    ) {
-        return String(
-            line.value
-        );
+    if (line.value != null) {
+        return String(line.value);
     }
-
 
     return "";
 }
@@ -785,456 +643,313 @@ function getGameBreakdown(
     requestId,
     sendCallback
 ) {
-    let summaryUrl =
-        getSummaryUrl(
-            sport,
-            leagueName,
-            gameId
-        );
-
+    let summaryUrl = getSummaryUrl(sport, leagueName, gameId);
 
     if (!summaryUrl) {
         sendCallback({
-            "LOAD_BREAKDOWN":
-                "Unsupported League",
-
-            "REQUEST_ID":
-                requestId
+            "LOAD_BREAKDOWN": "Unsupported League",
+            "REQUEST_ID": requestId
         });
-
         return;
     }
-
 
     /*
      * Always add a fresh cache-buster.
      */
     const url =
         summaryUrl +
-        (
-            summaryUrl.indexOf('?') > -1
-                ? '&'
-                : '?'
-        ) +
+        (summaryUrl.indexOf('?') > -1 ? '&' : '?') +
         "t=" +
         Date.now();
 
+    console.log("[BREAKDOWN REQUEST] " + url);
 
-    console.log(
-        "[BREAKDOWN REQUEST] " +
-        url
-    );
+    let req = new XMLHttpRequest();
+    req.open('GET', url);
 
+    req.onload = function() {
+        if (req.status === 200) {
+            try {
+                let breakdownText =
+                    "ESPN no longer provides breakdown data for this past matchup, or data is currently unavailable.";
 
-    let req =
-        new XMLHttpRequest();
+                let data = JSON.parse(req.responseText);
 
+                let comps = null;
+                let situation = null;
+                let compStatus = null;
 
-    req.open(
-        'GET',
-        url
-    );
+                /*
+                 * Traditional /summary responses.
+                 */
+                if (
+                    data.header &&
+                    data.header.competitions &&
+                    data.header.competitions.length > 0
+                ) {
+                    const headerComp = data.header.competitions[0];
+                    comps = headerComp.competitors;
+                    situation = headerComp.situation;
+                    compStatus = headerComp.status;
 
+                /*
+                 * Scoreboard responses.
+                 *
+                 * Most sports:
+                 *     event.competitions[]
+                 *
+                 * Tennis frequently:
+                 *     event.groupings[].competitions[]
+                 *
+                 * This mirrors the main Tennis parser so Game Info can
+                 * locate the exact flattened match ID.
+                 */
+                } else if (data.events) {
+                    let targetComp = null;
 
-    req.onload =
-        function() {
-
-            if (
-                req.status === 200
-            ) {
-                try {
-                    let breakdownText =
-                        "ESPN no longer provides breakdown data for this past matchup, or data is currently unavailable.";
-
-
-                    let data =
-                        JSON.parse(
-                            req.responseText
-                        );
-
-
-                    let comps = null;
-                    let situation = null;
-
-
-                    /*
-                     * Traditional /summary responses.
-                     */
-                    if (
-                        data.header &&
-                        data.header.competitions &&
-                        data.header.competitions.length > 0
+                    for (
+                        let eventIndex = 0;
+                        eventIndex < data.events.length;
+                        eventIndex++
                     ) {
-                        comps =
-                            data.header
-                                .competitions[0]
-                                .competitors;
-
-
-                        situation =
-                            data.header
-                                .competitions[0]
-                                .situation;
-
-
-                    /*
-                     * Scoreboard responses.
-                     *
-                     * Most sports:
-                     *
-                     *     event.competitions[]
-                     *
-                     * Tennis frequently:
-                     *
-                     *     event.groupings[].competitions[]
-                     *
-                     * This mirrors the main Tennis parser so Game Info can
-                     * locate the exact flattened match ID.
-                     */
-                    } else if (
-                        data.events
-                    ) {
-                        let targetComp =
-                            null;
-
-
-                        for (
-                            let eventIndex = 0;
-                            eventIndex < data.events.length;
-                            eventIndex++
-                        ) {
-                            const event =
-                                data.events[eventIndex];
-
-
-                            /*
-                             * First search ordinary competitions.
-                             */
-                            if (
-                                event.competitions &&
-                                event.competitions.length > 0
-                            ) {
-                                targetComp =
-                                    event.competitions.find(
-                                        competition =>
-                                            String(
-                                                competition.id
-                                            ) ===
-                                            String(
-                                                gameId
-                                            )
-                                    ) ||
-                                    null;
-
-
-                                if (
-                                    !targetComp &&
-                                    String(event.id) ===
-                                        String(gameId)
-                                ) {
-                                    targetComp =
-                                        event.competitions[0];
-                                }
-                            }
-
-
-                            if (targetComp) {
-                                break;
-                            }
-
-
-                            /*
-                             * Tennis commonly nests individual matches inside
-                             * groupings.
-                             */
-                            if (
-                                event.groupings
-                            ) {
-                                for (
-                                    let groupIndex = 0;
-                                    groupIndex < event.groupings.length;
-                                    groupIndex++
-                                ) {
-                                    const grouping =
-                                        event.groupings[
-                                            groupIndex
-                                        ];
-
-
-                                    if (
-                                        !grouping.competitions ||
-                                        grouping.competitions.length === 0
-                                    ) {
-                                        continue;
-                                    }
-
-
-                                    targetComp =
-                                        grouping.competitions.find(
-                                            competition =>
-                                                String(
-                                                    competition.id
-                                                ) ===
-                                                String(
-                                                    gameId
-                                                )
-                                        ) ||
-                                        null;
-
-
-                                    if (targetComp) {
-                                        break;
-                                    }
-                                }
-                            }
-
-
-                            if (targetComp) {
-                                break;
-                            }
-                        }
-
-
-                        if (targetComp) {
-                            comps =
-                                targetComp.competitors;
-
-                            situation =
-                                targetComp.situation;
-
-                        } else {
-                            console.log(
-                                "[BREAKDOWN MATCH NOT FOUND] sport=" +
-                                sport +
-                                " gameId=" +
-                                gameId +
-                                " events=" +
-                                data.events.length
-                            );
-                        }
-                    }
-
-
-                    if (
-                        comps &&
-                        comps.length >= 2
-                    ) {
-                        let t1Obj =
-                            comps[1].team ||
-                            comps[1].athlete ||
-                            {};
-
-
-                        let t2Obj =
-                            comps[0].team ||
-                            comps[0].athlete ||
-                            {};
-
-
-                        let t1 =
-                            String(
-                                t1Obj.abbreviation ||
-                                t1Obj.shortName ||
-                                t1Obj.lastName ||
-                                "TM1"
-                            ).substring(
-                                0,
-                                5
-                            );
-
-
-                        let t2 =
-                            String(
-                                t2Obj.abbreviation ||
-                                t2Obj.shortName ||
-                                t2Obj.lastName ||
-                                "TM2"
-                            ).substring(
-                                0,
-                                5
-                            );
-
-
-                        let s1 =
-                            comps[1].score != null
-                                ? comps[1].score
-                                : "0";
-
-
-                        let s2 =
-                            comps[0].score != null
-                                ? comps[0].score
-                                : "0";
-
-
-                        breakdownText =
-                            t1 +
-                            "   " +
-                            s1 +
-                            " - " +
-                            s2 +
-                            "   " +
-                            t2;
-
-
-                        let sitText =
-                            gameDetails(
-                                sport,
-                                situation
-                            );
-
-
-                        if (
-                            sitText &&
-                            sitText.trim() !== ""
-                        ) {
-                            breakdownText +=
-                                "\n\n" +
-                                sitText;
-                        }
-
+                        const event = data.events[eventIndex];
 
                         /*
-                         * Add period/set/inning scores when ESPN exposes them.
+                         * First search ordinary competitions.
                          */
                         if (
-                            comps[1].linescores &&
-                            comps[0].linescores &&
-                            comps[1].linescores.length > 0 &&
-                            comps[0].linescores.length > 0
+                            event.competitions &&
+                            event.competitions.length > 0
                         ) {
-                            let sets1 =
-                                comps[1]
-                                    .linescores
-                                    .map(
-                                        line =>
-                                            formatBreakdownLineScore(
-                                                sport,
-                                                line
-                                            )
-                                    )
-                                    .filter(
-                                        value =>
-                                            value !== ""
-                                    )
-                                    .join("  ");
-
-
-                            let sets2 =
-                                comps[0]
-                                    .linescores
-                                    .map(
-                                        line =>
-                                            formatBreakdownLineScore(
-                                                sport,
-                                                line
-                                            )
-                                    )
-                                    .filter(
-                                        value =>
-                                            value !== ""
-                                    )
-                                    .join("  ");
-
+                            targetComp =
+                                event.competitions.find(
+                                    competition =>
+                                        String(competition.id) ===
+                                        String(gameId)
+                                ) || null;
 
                             if (
-                                sets1 !== "" ||
-                                sets2 !== ""
+                                !targetComp &&
+                                String(event.id) === String(gameId)
                             ) {
-                                let label =
-                                    breakdownLineScoreLabel(
-                                        sport
-                                    );
-
-
-                                breakdownText +=
-                                    "\n\n" +
-                                    label +
-                                    ":\n" +
-                                    t1 +
-                                    ":  " +
-                                    sets1 +
-                                    "\n" +
-                                    t2 +
-                                    ":  " +
-                                    sets2;
+                                targetComp = event.competitions[0];
                             }
+                        }
+
+                        if (targetComp) {
+                            break;
+                        }
+
+                        /*
+                         * Tennis commonly nests individual matches inside
+                         * groupings.
+                         */
+                        if (event.groupings) {
+                            for (
+                                let groupIndex = 0;
+                                groupIndex < event.groupings.length;
+                                groupIndex++
+                            ) {
+                                const grouping = event.groupings[groupIndex];
+
+                                if (
+                                    !grouping.competitions ||
+                                    grouping.competitions.length === 0
+                                ) {
+                                    continue;
+                                }
+
+                                targetComp =
+                                    grouping.competitions.find(
+                                        competition =>
+                                            String(competition.id) ===
+                                            String(gameId)
+                                    ) || null;
+
+                                if (targetComp) {
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (targetComp) {
+                            break;
                         }
                     }
 
-
-                    /*
-                     * Keep Game Info comfortably inside the watch AppMessage
-                     * inbox.
-                     */
-                    if (
-                        breakdownText.length >
-                        450
-                    ) {
-                        breakdownText =
-                            breakdownText.substring(
-                                0,
-                                447
-                            ) +
-                            "...";
+                    if (targetComp) {
+                        comps = targetComp.competitors;
+                        situation = targetComp.situation;
+                        compStatus = targetComp.status;
+                    } else {
+                        console.log(
+                            "[BREAKDOWN MATCH NOT FOUND] sport=" +
+                            sport +
+                            " gameId=" +
+                            gameId +
+                            " events=" +
+                            data.events.length
+                        );
                     }
-
-
-                    sendCallback({
-                        "LOAD_BREAKDOWN":
-                            breakdownText,
-
-                        "REQUEST_ID":
-                            requestId
-                    });
-
-
-                } catch (e) {
-                    console.log(
-                        "[BREAKDOWN PARSE ERROR] " +
-                        e
-                    );
-
-
-                    sendCallback({
-                        "LOAD_BREAKDOWN":
-                            "Parse Error",
-
-                        "REQUEST_ID":
-                            requestId
-                    });
                 }
 
+                if (comps && comps.length >= 2) {
+                    let t1Obj = comps[1].team || comps[1].athlete || {};
+                    let t2Obj = comps[0].team || comps[0].athlete || {};
 
-            } else {
-                console.log(
-                    "[BREAKDOWN HTTP ERROR] Status: " +
-                    req.status
-                );
+                    let t1 = String(
+                        t1Obj.abbreviation ||
+                        t1Obj.shortName ||
+                        t1Obj.lastName ||
+                        "TM1"
+                    ).substring(0, 5);
 
+                    let t2 = String(
+                        t2Obj.abbreviation ||
+                        t2Obj.shortName ||
+                        t2Obj.lastName ||
+                        "TM2"
+                    ).substring(0, 5);
+
+                    if (sport == models.sports.MMA) {
+                        const statusType =
+                            (compStatus && compStatus.type) || {};
+                        const isFinal =
+                            statusType.name === "STATUS_FINAL";
+                        const hasWinner =
+                            comps[1].winner === true ||
+                            comps[0].winner === true;
+
+                        if (isFinal && hasWinner) {
+                            const res1 = comps[1].winner === true ? "W" : "L";
+                            const res2 = comps[0].winner === true ? "W" : "L";
+                            breakdownText =
+                                t1 + "   " + res1 + " - " + res2 + "   " + t2;
+                        } else if (isFinal) {
+                            breakdownText = t1 + "   FINAL   " + t2;
+                        } else {
+                            breakdownText = t1 + "  vs  " + t2;
+                        }
+
+                        const statusDetail = String(
+                            statusType.detail ||
+                            statusType.shortDetail ||
+                            ""
+                        ).trim();
+
+                        if (statusDetail !== "") {
+                            breakdownText += "\n" + statusDetail;
+                        }
+
+                        const rec1 = getCompetitorRecordSummary(comps[1]);
+                        const rec2 = getCompetitorRecordSummary(comps[0]);
+
+                        if (rec1 !== "" || rec2 !== "") {
+                            breakdownText +=
+                                "\n\nRecords:\n" +
+                                t1 + ": " + (rec1 || "N/A") + "\n" +
+                                t2 + ": " + (rec2 || "N/A");
+                        }
+
+                    } else {
+                        let s1;
+                        let s2;
+
+                        if (sport == models.sports.TENNIS) {
+                            s1 = getTennisCompetitorScore(comps[1]);
+                            s2 = getTennisCompetitorScore(comps[0]);
+                        } else {
+                            s1 = comps[1].score != null ? comps[1].score : "0";
+                            s2 = comps[0].score != null ? comps[0].score : "0";
+                        }
+
+                        breakdownText =
+                            t1 + "   " + s1 + " - " + s2 + "   " + t2;
+                    }
+
+                    let sitText = gameDetails(sport, situation);
+
+                    if (sitText && sitText.trim() !== "") {
+                        breakdownText += "\n\n" + sitText;
+                    }
+
+                    /*
+                     * Add period/set/inning scores when ESPN exposes them.
+                     *
+                     * Skip MMA linescores because ESPN exposes raw judge
+                     * totals rather than round-by-round scores, which clips
+                     * the bottom of the non-scrolling Breakdown window.
+                     */
+                    if (
+                        sport != models.sports.MMA &&
+                        comps[1].linescores &&
+                        comps[0].linescores &&
+                        comps[1].linescores.length > 0 &&
+                        comps[0].linescores.length > 0
+                    ) {
+                        let sets1 = comps[1].linescores
+                            .map(line => formatBreakdownLineScore(sport, line))
+                            .filter(value => value !== "")
+                            .join("  ");
+
+                        let sets2 = comps[0].linescores
+                            .map(line => formatBreakdownLineScore(sport, line))
+                            .filter(value => value !== "")
+                            .join("  ");
+
+                        if (sets1 !== "" || sets2 !== "") {
+                            let label = breakdownLineScoreLabel(sport);
+
+                            breakdownText +=
+                                "\n\n" +
+                                label +
+                                ":\n" +
+                                t1 + ":  " + (sets1 || "-") + "\n" +
+                                t2 + ":  " + (sets2 || "-");
+                        }
+                    }
+                }
+
+                /*
+                 * Keep Game Info comfortably inside the watch AppMessage
+                 * inbox.
+                 */
+                if (breakdownText.length > 450) {
+                    breakdownText =
+                        breakdownText.substring(0, 447) + "...";
+                }
 
                 sendCallback({
-                    "LOAD_BREAKDOWN":
-                        "ESPN no longer provides breakdown data for this past matchup, or data is currently unavailable.",
+                    "LOAD_BREAKDOWN": breakdownText,
+                    "REQUEST_ID": requestId
+                });
 
-                    "REQUEST_ID":
-                        requestId
+            } catch (e) {
+                console.log("[BREAKDOWN PARSE ERROR] " + e);
+
+                sendCallback({
+                    "LOAD_BREAKDOWN": "Parse Error",
+                    "REQUEST_ID": requestId
                 });
             }
-        };
 
+        } else {
+            console.log("[BREAKDOWN HTTP ERROR] Status: " + req.status);
 
-    req.onerror =
-        function() {
             sendCallback({
                 "LOAD_BREAKDOWN":
-                    "Connection Error",
-
-                "REQUEST_ID":
-                    requestId
+                    "ESPN no longer provides breakdown data for this past matchup, or data is currently unavailable.",
+                "REQUEST_ID": requestId
             });
-        };
+        }
+    };
 
+    req.onerror = function() {
+        sendCallback({
+            "LOAD_BREAKDOWN": "Connection Error",
+            "REQUEST_ID": requestId
+        });
+    };
 
     req.send();
 }
@@ -1253,12 +968,8 @@ function getGameBreakdown(
  * without changing the corresponding C menu would silently request the wrong
  * ESPN competition.
  */
-function getEndpointsForSport(
-    sport
-) {
-    var base =
-        "https://site.api.espn.com/apis/site/v2/sports";
-
+function getEndpointsForSport(sport) {
+    var base = "https://site.api.espn.com/apis/site/v2/sports";
 
     switch (sport) {
 
@@ -1269,45 +980,23 @@ function getEndpointsForSport(
         case models.sports.NFL:
             return [
                 {
-                    url:
-                        base +
-                        '/football/nfl',
-
-                    league:
-                        "NFL"
+                    url: base + '/football/nfl',
+                    league: "NFL"
                 },
-
                 {
-                    url:
-                        base +
-                        '/football/college-football',
-
-                    league:
-                        "NCAAF",
-
-                    params:
-                        "groups=80"
+                    url: base + '/football/college-football',
+                    league: "NCAAF",
+                    params: "groups=80"
                 },
-
                 {
-                    url:
-                        base +
-                        '/football/ufl',
-
-                    league:
-                        "UFL"
+                    url: base + '/football/ufl',
+                    league: "UFL"
                 },
-
                 {
-                    url:
-                        base +
-                        '/football/cfl',
-
-                    league:
-                        "CFL"
+                    url: base + '/football/cfl',
+                    league: "CFL"
                 }
             ];
-
 
         // -------------------------------------------------
         // BASEBALL
@@ -1316,33 +1005,18 @@ function getEndpointsForSport(
         case models.sports.MLB:
             return [
                 {
-                    url:
-                        base +
-                        '/baseball/mlb',
-
-                    league:
-                        "MLB"
+                    url: base + '/baseball/mlb',
+                    league: "MLB"
                 },
-
                 {
-                    url:
-                        base +
-                        '/baseball/college-baseball',
-
-                    league:
-                        "NCAA Base"
+                    url: base + '/baseball/college-baseball',
+                    league: "NCAA Base"
                 },
-
                 {
-                    url:
-                        base +
-                        '/baseball/world-baseball-classic',
-
-                    league:
-                        "WBC"
+                    url: base + '/baseball/world-baseball-classic',
+                    league: "WBC"
                 }
             ];
-
 
         // -------------------------------------------------
         // HOCKEY
@@ -1351,24 +1025,14 @@ function getEndpointsForSport(
         case models.sports.NHL:
             return [
                 {
-                    url:
-                        base +
-                        '/hockey/nhl',
-
-                    league:
-                        "NHL"
+                    url: base + '/hockey/nhl',
+                    league: "NHL"
                 },
-
                 {
-                    url:
-                        base +
-                        '/hockey/mens-college-hockey',
-
-                    league:
-                        "NCAA Hockey"
+                    url: base + '/hockey/mens-college-hockey',
+                    league: "NCAA Hockey"
                 }
             ];
-
 
         // -------------------------------------------------
         // BASKETBALL
@@ -1377,45 +1041,23 @@ function getEndpointsForSport(
         case models.sports.NBA:
             return [
                 {
-                    url:
-                        base +
-                        '/basketball/nba',
-
-                    league:
-                        "NBA"
+                    url: base + '/basketball/nba',
+                    league: "NBA"
                 },
-
                 {
-                    url:
-                        base +
-                        '/basketball/wnba',
-
-                    league:
-                        "WNBA"
+                    url: base + '/basketball/wnba',
+                    league: "WNBA"
                 },
-
                 {
-                    url:
-                        base +
-                        '/basketball/mens-college-basketball',
-
-                    league:
-                        "NCAAM",
-
-                    params:
-                        "groups=50"
+                    url: base + '/basketball/mens-college-basketball',
+                    league: "NCAAM",
+                    params: "groups=50"
                 },
-
                 {
-                    url:
-                        base +
-                        '/basketball/fiba',
-
-                    league:
-                        "FIBA"
+                    url: base + '/basketball/fiba',
+                    league: "FIBA"
                 }
             ];
-
 
         // -------------------------------------------------
         // SOCCER
@@ -1424,87 +1066,42 @@ function getEndpointsForSport(
         case models.sports.MLS:
             return [
                 {
-                    url:
-                        base +
-                        '/soccer/usa.1',
-
-                    league:
-                        "MLS"
+                    url: base + '/soccer/usa.1',
+                    league: "MLS"
                 },
-
                 {
-                    url:
-                        base +
-                        '/soccer/eng.1',
-
-                    league:
-                        "EPL"
+                    url: base + '/soccer/eng.1',
+                    league: "EPL"
                 },
-
                 {
-                    url:
-                        base +
-                        '/soccer/esp.1',
-
-                    league:
-                        "La Liga"
+                    url: base + '/soccer/esp.1',
+                    league: "La Liga"
                 },
-
                 {
-                    url:
-                        base +
-                        '/soccer/ger.1',
-
-                    league:
-                        "Bundesliga"
+                    url: base + '/soccer/ger.1',
+                    league: "Bundesliga"
                 },
-
                 {
-                    url:
-                        base +
-                        '/soccer/ita.1',
-
-                    league:
-                        "Serie A"
+                    url: base + '/soccer/ita.1',
+                    league: "Serie A"
                 },
-
                 {
-                    url:
-                        base +
-                        '/soccer/mex.1',
-
-                    league:
-                        "Liga MX"
+                    url: base + '/soccer/mex.1',
+                    league: "Liga MX"
                 },
-
                 {
-                    url:
-                        base +
-                        '/soccer/uefa.champions',
-
-                    league:
-                        "UEFA Champ"
+                    url: base + '/soccer/uefa.champions',
+                    league: "UEFA Champ"
                 },
-
                 {
-                    url:
-                        base +
-                        '/soccer/fifa.world',
-
-                    league:
-                        "World Cup"
+                    url: base + '/soccer/fifa.world',
+                    league: "World Cup"
                 },
-
                 {
-                    url:
-                        base +
-                        '/soccer/fifa.wwc',
-
-                    league:
-                        "Women's WC"
+                    url: base + '/soccer/fifa.wwc',
+                    league: "Women's WC"
                 }
             ];
-
 
         // -------------------------------------------------
         // RUGBY
@@ -1513,33 +1110,18 @@ function getEndpointsForSport(
         case models.sports.RUGBY:
             return [
                 {
-                    url:
-                        base +
-                        '/rugby-league/3',
-
-                    league:
-                        "NRL"
+                    url: base + '/rugby-league/3',
+                    league: "NRL"
                 },
-
                 {
-                    url:
-                        base +
-                        '/rugby/180659',
-
-                    league:
-                        "Six Nations"
+                    url: base + '/rugby/180659',
+                    league: "Six Nations"
                 },
-
                 {
-                    url:
-                        base +
-                        '/rugby/164205',
-
-                    league:
-                        "Rugby WC"
+                    url: base + '/rugby/164205',
+                    league: "Rugby WC"
                 }
             ];
-
 
         // -------------------------------------------------
         // CRICKET
@@ -1555,20 +1137,12 @@ function getEndpointsForSport(
                  */
                 {
                     url: [
-                        base +
-                            '/cricket/8039',
-
-                        base +
-                            '/cricket/8040'
+                        base + '/cricket/8039',
+                        base + '/cricket/8040'
                     ],
-
-                    league:
-                        "International",
-
-                    isPast:
-                        false
+                    league: "International",
+                    isPast: false
                 },
-
                 /*
                  * The URLs remain here for fallback/Game Info routing.
                  *
@@ -1578,69 +1152,33 @@ function getEndpointsForSport(
                  */
                 {
                     url: [
-                        base +
-                            '/cricket/8039',
-
-                        base +
-                            '/cricket/8040'
+                        base + '/cricket/8039',
+                        base + '/cricket/8040'
                     ],
-
-                    league:
-                        "Int'l Past",
-
-                    isPast:
-                        true
+                    league: "Int'l Past",
+                    isPast: true
                 },
-
                 {
-                    url:
-                        base +
-                        '/cricket/8048',
-
-                    league:
-                        "IPL",
-
-                    isPast:
-                        false
+                    url: base + '/cricket/8048',
+                    league: "IPL",
+                    isPast: false
                 },
-
                 {
-                    url:
-                        base +
-                        '/cricket/8048',
-
-                    league:
-                        "IPL Past",
-
-                    isPast:
-                        true
+                    url: base + '/cricket/8048',
+                    league: "IPL Past",
+                    isPast: true
                 },
-
                 {
-                    url:
-                        base +
-                        '/cricket/1528556',
-
-                    league:
-                        "MLC",
-
-                    isPast:
-                        false
+                    url: base + '/cricket/1528556',
+                    league: "MLC",
+                    isPast: false
                 },
-
                 {
-                    url:
-                        base +
-                        '/cricket/1528556',
-
-                    league:
-                        "MLC Past",
-
-                    isPast:
-                        true
+                    url: base + '/cricket/1528556',
+                    league: "MLC Past",
+                    isPast: true
                 }
             ];
-
 
         // -------------------------------------------------
         // TENNIS
@@ -1649,54 +1187,26 @@ function getEndpointsForSport(
         case models.sports.TENNIS:
             return [
                 {
-                    url:
-                        base +
-                        '/tennis/atp',
-
-                    league:
-                        "ATP",
-
-                    isPast:
-                        false
+                    url: base + '/tennis/atp',
+                    league: "ATP",
+                    isPast: false
                 },
-
                 {
-                    url:
-                        base +
-                        '/tennis/atp',
-
-                    league:
-                        "ATP Past",
-
-                    isPast:
-                        true
+                    url: base + '/tennis/atp',
+                    league: "ATP Past",
+                    isPast: true
                 },
-
                 {
-                    url:
-                        base +
-                        '/tennis/wta',
-
-                    league:
-                        "WTA",
-
-                    isPast:
-                        false
+                    url: base + '/tennis/wta',
+                    league: "WTA",
+                    isPast: false
                 },
-
                 {
-                    url:
-                        base +
-                        '/tennis/wta',
-
-                    league:
-                        "WTA Past",
-
-                    isPast:
-                        true
+                    url: base + '/tennis/wta',
+                    league: "WTA Past",
+                    isPast: true
                 }
             ];
-
 
         // -------------------------------------------------
         // AFL
@@ -1705,15 +1215,10 @@ function getEndpointsForSport(
         case models.sports.AFL:
             return [
                 {
-                    url:
-                        base +
-                        '/australian-football/afl',
-
-                    league:
-                        "AFL"
+                    url: base + '/australian-football/afl',
+                    league: "AFL"
                 }
             ];
-
 
         // -------------------------------------------------
         // MMA
@@ -1722,15 +1227,10 @@ function getEndpointsForSport(
         case models.sports.MMA:
             return [
                 {
-                    url:
-                        base +
-                        '/mma/ufc',
-
-                    league:
-                        "UFC"
+                    url: base + '/mma/ufc',
+                    league: "UFC"
                 }
             ];
-
 
         default:
             return [];
@@ -1761,37 +1261,23 @@ function getGamesForSport(
     favoriteTeamIDs
 ) {
     if (DEBUG_MOCK) {
-        onLoad(
-            mock.nfl
-        );
-
+        onLoad(mock.nfl);
         return;
     }
 
-
-    let endpoints =
-        getEndpointsForSport(
-            sport
-        );
-
+    let endpoints = getEndpointsForSport(sport);
 
     let allGames = [];
-
     let completedRequests = 0;
     let hasCriticalError = false;
     let hasLoaded = false;
 
-
-    if (
-        endpoints.length === 0
-    ) {
+    if (endpoints.length === 0) {
         onError();
         return;
     }
 
-
     let isPastReq = false;
-
 
     /*
      * A valid league index means the watch intentionally selected exactly one
@@ -1803,28 +1289,17 @@ function getGamesForSport(
         leagueIndex >= 0 &&
         leagueIndex < endpoints.length
     ) {
-        endpoints = [
-            endpoints[leagueIndex]
-        ];
-
-        isPastReq =
-            endpoints[0].isPast ===
-            true;
-
-
+        endpoints = [endpoints[leagueIndex]];
+        isPastReq = endpoints[0].isPast === true;
     } else {
         /*
          * Favorites/global requests should never fan out into historical
          * folders.
          */
-        endpoints =
-            endpoints.filter(
-                endpoint =>
-                    endpoint.isPast !==
-                    true
-            );
+        endpoints = endpoints.filter(
+            endpoint => endpoint.isPast !== true
+        );
     }
-
 
     /*
      * International Cricket Past is different from IPL/MLC Past.
@@ -1833,159 +1308,83 @@ function getGamesForSport(
      * not reliably inside the old 8039/8040 buckets.
      */
     const isCricketInternationalPast =
-        sport ==
-            models.sports.CRICKET &&
+        sport == models.sports.CRICKET &&
         leagueIndex == 1 &&
         isPastReq;
 
-
     let fetchTasks = [];
 
+    endpoints.forEach(endpoint => {
+        let urls = Array.isArray(endpoint.url)
+            ? endpoint.url
+            : [endpoint.url];
 
-    endpoints.forEach(
-        endpoint => {
+        urls.forEach(baseUrl => {
+            let baseParams = endpoint.params || "";
 
-            let urls =
-                Array.isArray(
-                    endpoint.url
-                )
-                    ? endpoint.url
-                    : [
-                        endpoint.url
-                    ];
+            if (endpoint.isPast && isCricketInternationalPast) {
+                /*
+                 * Skip the wasteful 8039/8040 x 13-day request set.
+                 *
+                 * Dynamic series tasks are added after Cricket header
+                 * discovery below.
+                 */
+                return;
 
+            } else if (endpoint.isPast) {
+                /*
+                 * Past Tennis / IPL / MLC:
+                 *
+                 * Use individual dates rather than a YYYYMMDD-YYYYMMDD
+                 * range because ESPN's range support is inconsistent.
+                 *
+                 * Current owns roughly the newest 48 hours. Past owns
+                 * days 2 through 14.
+                 */
+                for (let dayOffset = 2; dayOffset <= 14; dayOffset++) {
+                    let day = new Date();
+                    day.setDate(day.getDate() - dayOffset);
 
-            urls.forEach(
-                baseUrl => {
+                    let dayString = day
+                        .toISOString()
+                        .slice(0, 10)
+                        .replace(/-/g, '');
 
-                    let baseParams =
-                        endpoint.params ||
-                        "";
+                    let params = baseParams;
+                    params += (params === "" ? "" : "&") + "dates=" + dayString;
 
-
-                    if (
-                        endpoint.isPast &&
-                        isCricketInternationalPast
-                    ) {
-                        /*
-                         * Skip the wasteful 8039/8040 x 13-day request set.
-                         *
-                         * Dynamic series tasks are added after Cricket header
-                         * discovery below.
-                         */
-                        return;
-
-
-                    } else if (
-                        endpoint.isPast
-                    ) {
-                        /*
-                         * Past Tennis / IPL / MLC:
-                         *
-                         * Use individual dates rather than a YYYYMMDD-YYYYMMDD
-                         * range because ESPN's range support is inconsistent.
-                         *
-                         * Current owns roughly the newest 48 hours. Past owns
-                         * days 2 through 14.
-                         */
-                        for (
-                            let dayOffset = 2;
-                            dayOffset <= 14;
-                            dayOffset++
-                        ) {
-                            let day =
-                                new Date();
-
-
-                            day.setDate(
-                                day.getDate() -
-                                dayOffset
-                            );
-
-
-                            let dayString =
-                                day
-                                    .toISOString()
-                                    .slice(
-                                        0,
-                                        10
-                                    )
-                                    .replace(
-                                        /-/g,
-                                        ''
-                                    );
-
-
-                            let params =
-                                baseParams;
-
-
-                            params +=
-                                (
-                                    params === ""
-                                        ? ""
-                                        : "&"
-                                ) +
-                                "dates=" +
-                                dayString;
-
-
-                            fetchTasks.push({
-                                url:
-                                    baseUrl,
-
-                                league:
-                                    endpoint.league,
-
-                                params:
-                                    params
-                            });
-                        }
-
-
-                    } else {
-                        fetchTasks.push({
-                            url:
-                                baseUrl,
-
-                            league:
-                                endpoint.league,
-
-                            params:
-                                baseParams
-                        });
-                    }
+                    fetchTasks.push({
+                        url: baseUrl,
+                        league: endpoint.league,
+                        params: params
+                    });
                 }
-            );
-        }
-    );
 
+            } else {
+                fetchTasks.push({
+                    url: baseUrl,
+                    league: endpoint.league,
+                    params: baseParams
+                });
+            }
+        });
+    });
 
-    function finishSuccess(
-        games
-    ) {
+    function finishSuccess(games) {
         if (hasLoaded) {
             return;
         }
-
         hasLoaded = true;
-
-        onLoad(
-            games
-        );
+        onLoad(games);
     }
-
 
     function finishError() {
         if (hasLoaded) {
             return;
         }
-
         hasLoaded = true;
-
         onError();
     }
-
 
     // -----------------------------------------------------
     // BOUNDED REQUEST QUEUE
@@ -1997,45 +1396,22 @@ function getGamesForSport(
 
         const MAX_CONCURRENT = 4;
 
-
         function runNext() {
-            if (
-                taskIndex >=
-                fetchTasks.length
-            ) {
+            if (taskIndex >= fetchTasks.length) {
                 return;
             }
 
-
-            let task =
-                fetchTasks[
-                    taskIndex++
-                ];
-
-
+            let task = fetchTasks[taskIndex++];
             activeRequests++;
 
-
-            let req =
-                new XMLHttpRequest();
-
+            let req = new XMLHttpRequest();
 
             let cleanParams =
-                task.params &&
-                task.params.startsWith('?')
+                task.params && task.params.startsWith('?')
                     ? task.params.substring(1)
-                    : (
-                        task.params ||
-                        ""
-                    );
+                    : (task.params || "");
 
-
-            let paramString =
-                cleanParams
-                    ? "&" +
-                        cleanParams
-                    : "";
-
+            let paramString = cleanParams ? "&" + cleanParams : "";
 
             const fullUrl =
                 task.url +
@@ -2043,363 +1419,202 @@ function getGamesForSport(
                 Date.now() +
                 paramString;
 
+            console.log("[ESPN REQUEST] " + fullUrl);
 
-            console.log(
-                "[ESPN REQUEST] " +
-                fullUrl
-            );
-
-
-            req.open(
-                'GET',
-                fullUrl
-            );
-
+            req.open('GET', fullUrl);
 
             let isTimeout = false;
 
+            let watchdog = setTimeout(function() {
+                isTimeout = true;
+                hasCriticalError = true;
 
-            let watchdog =
-                setTimeout(
-                    function() {
-                        isTimeout = true;
-                        hasCriticalError = true;
+                completedRequests++;
+                activeRequests--;
 
-                        completedRequests++;
-                        activeRequests--;
+                try {
+                    req.abort();
+                } catch (e) {}
 
+                checkCompletion();
+                runNext();
+            }, 10000);
 
-                        try {
-                            req.abort();
+            req.onload = function() {
+                if (isTimeout) {
+                    return;
+                }
 
-                        } catch (e) {}
+                clearTimeout(watchdog);
 
+                if (req.readyState != 4) {
+                    return;
+                }
 
-                        checkCompletion();
-                        runNext();
-                    },
-
-                    10000
+                console.log(
+                    "[ESPN RESPONSE] " +
+                    req.status +
+                    " " +
+                    task.league
                 );
 
+                if (req.status == 200) {
+                    try {
+                        let sportsData = JSON.parse(req.responseText);
 
-            req.onload =
-                function() {
+                        if (sportsData.events) {
+                            let allParsedEvents = [];
 
-                    if (isTimeout) {
-                        return;
-                    }
+                            /*
+                             * Flatten each real ESPN competition into one
+                             * pseudo-event.
+                             *
+                             * Tennis can put matches under groupings,
+                             * whereas most team sports use competitions
+                             * directly.
+                             */
+                            const processCompetition = (comp, event) => {
+                                let status =
+                                    comp.status && comp.status.type
+                                        ? comp.status.type.name
+                                        : "";
 
+                                let shortDetail =
+                                    comp.status && comp.status.type
+                                        ? (comp.status.type.shortDetail || "")
+                                        : "";
 
-                    clearTimeout(
-                        watchdog
-                    );
+                                let p1 =
+                                    comp.competitors &&
+                                    comp.competitors.length > 1
+                                        ? (
+                                            comp.competitors[1].athlete ||
+                                            comp.competitors[1].team
+                                        )
+                                        : null;
 
+                                let p2 =
+                                    comp.competitors &&
+                                    comp.competitors.length > 0
+                                        ? (
+                                            comp.competitors[0].athlete ||
+                                            comp.competitors[0].team
+                                        )
+                                        : null;
 
-                    if (
-                        req.readyState !=
-                        4
-                    ) {
-                        return;
-                    }
+                                let name1 = p1
+                                    ? (p1.displayName || p1.shortName || "TBD")
+                                    : "TBD";
 
-
-                    console.log(
-                        "[ESPN RESPONSE] " +
-                        req.status +
-                        " " +
-                        task.league
-                    );
-
-
-                    if (
-                        req.status ==
-                        200
-                    ) {
-                        try {
-                            let sportsData =
-                                JSON.parse(
-                                    req.responseText
-                                );
-
-
-                            if (
-                                sportsData.events
-                            ) {
-                                let allParsedEvents = [];
-
+                                let name2 = p2
+                                    ? (p2.displayName || p2.shortName || "TBD")
+                                    : "TBD";
 
                                 /*
-                                 * Flatten each real ESPN competition into one
-                                 * pseudo-event.
-                                 *
-                                 * Tennis can put matches under groupings,
-                                 * whereas most team sports use competitions
-                                 * directly.
+                                 * Retired/walkover Tennis entries
+                                 * should not appear as active games.
                                  */
-                                const processCompetition =
-                                    (
-                                        comp,
-                                        event
-                                    ) => {
+                                if (
+                                    status === "STATUS_RETIRED" ||
+                                    status === "STATUS_WALKOVER"
+                                ) {
+                                    return;
+                                }
 
-                                        let status =
-                                            comp.status &&
-                                            comp.status.type
-                                                ? comp.status
-                                                    .type
-                                                    .name
-                                                : "";
+                                if (
+                                    shortDetail.indexOf("Retired") !== -1 ||
+                                    shortDetail.indexOf("Walkover") !== -1
+                                ) {
+                                    return;
+                                }
 
+                                /*
+                                 * Completely unresolved future
+                                 * brackets are not useful on-watch.
+                                 */
+                                if (name1 === "TBD" && name2 === "TBD") {
+                                    return;
+                                }
 
-                                        let shortDetail =
-                                            comp.status &&
-                                            comp.status.type
-                                                ? (
-                                                    comp.status
-                                                        .type
-                                                        .shortDetail ||
-                                                    ""
-                                                )
-                                                : "";
+                                allParsedEvents.push({
+                                    id: comp.id || event.id,
+                                    eventId: event.id,
+                                    name: event.name,
+                                    competitions: [comp]
+                                });
+                            };
 
-
-                                        let p1 =
-                                            comp.competitors &&
-                                            comp.competitors.length > 1
-                                                ? (
-                                                    comp.competitors[1]
-                                                        .athlete ||
-                                                    comp.competitors[1]
-                                                        .team
-                                                )
-                                                : null;
-
-
-                                        let p2 =
-                                            comp.competitors &&
-                                            comp.competitors.length > 0
-                                                ? (
-                                                    comp.competitors[0]
-                                                        .athlete ||
-                                                    comp.competitors[0]
-                                                        .team
-                                                )
-                                                : null;
-
-
-                                        let name1 =
-                                            p1
-                                                ? (
-                                                    p1.displayName ||
-                                                    p1.shortName ||
-                                                    "TBD"
-                                                )
-                                                : "TBD";
-
-
-                                        let name2 =
-                                            p2
-                                                ? (
-                                                    p2.displayName ||
-                                                    p2.shortName ||
-                                                    "TBD"
-                                                )
-                                                : "TBD";
-
-
-                                        /*
-                                         * Retired/walkover Tennis entries
-                                         * should not appear as active games.
-                                         */
-                                        if (
-                                            status ===
-                                                "STATUS_RETIRED" ||
-                                            status ===
-                                                "STATUS_WALKOVER"
-                                        ) {
-                                            return;
-                                        }
-
-
-                                        if (
-                                            shortDetail.indexOf(
-                                                "Retired"
-                                            ) !== -1 ||
-                                            shortDetail.indexOf(
-                                                "Walkover"
-                                            ) !== -1
-                                        ) {
-                                            return;
-                                        }
-
-
-                                        /*
-                                         * Completely unresolved future
-                                         * brackets are not useful on-watch.
-                                         */
-                                        if (
-                                            name1 ===
-                                                "TBD" &&
-                                            name2 ===
-                                                "TBD"
-                                        ) {
-                                            return;
-                                        }
-
-
-                                        allParsedEvents.push({
-                                            id:
-                                                comp.id ||
-                                                event.id,
-
-                                            eventId:
-                                                event.id,
-
-                                            name:
-                                                event.name,
-
-                                            competitions: [
-                                                comp
-                                            ]
-                                        });
-                                    };
-
-
-                                sportsData.events
-                                    .forEach(
-                                        event => {
-
-                                            if (
-                                                event.competitions
-                                            ) {
-                                                event.competitions
-                                                    .forEach(
-                                                        comp =>
-                                                            processCompetition(
-                                                                comp,
-                                                                event
-                                                            )
-                                                    );
-
-
-                                            } else if (
-                                                event.groupings
-                                            ) {
-                                                event.groupings
-                                                    .forEach(
-                                                        grouping => {
-
-                                                            if (
-                                                                grouping.competitions
-                                                            ) {
-                                                                grouping
-                                                                    .competitions
-                                                                    .forEach(
-                                                                        comp =>
-                                                                            processCompetition(
-                                                                                comp,
-                                                                                event
-                                                                            )
-                                                                    );
-                                                            }
-                                                        }
-                                                    );
-                                            }
-                                        }
+                            sportsData.events.forEach(event => {
+                                if (event.competitions) {
+                                    event.competitions.forEach(comp =>
+                                        processCompetition(comp, event)
                                     );
+                                } else if (event.groupings) {
+                                    event.groupings.forEach(grouping => {
+                                        if (grouping.competitions) {
+                                            grouping.competitions.forEach(comp =>
+                                                processCompetition(comp, event)
+                                            );
+                                        }
+                                    });
+                                }
+                            });
 
+                            let games = allParsedEvents
+                                .map(event =>
+                                    parseEvent(
+                                        sport,
+                                        task.league,
+                                        event,
+                                        fullUrl
+                                    )
+                                )
+                                .filter(game => game !== null);
 
-                                let games =
-                                    allParsedEvents
-                                        .map(
-                                            event =>
-                                                parseEvent(
-                                                    sport,
-                                                    task.league,
-                                                    event,
-                                                    fullUrl
-                                                )
-                                        )
-                                        .filter(
-                                            game =>
-                                                game !==
-                                                null
-                                        );
-
-
-                                allGames =
-                                    allGames.concat(
-                                        games
-                                    );
-                            }
-
-
-                        } catch (e) {
-                            console.log(
-                                "[ESPN JSON ERROR] " +
-                                fullUrl +
-                                " :: " +
-                                e
-                            );
-
-
-                            hasCriticalError =
-                                true;
+                            allGames = allGames.concat(games);
                         }
 
-
-                    } else if (
-                        req.status != 404
-                    ) {
-                        /*
-                         * A missing/off-season endpoint is allowed to be empty.
-                         *
-                         * Other HTTP failures count as a real network/server
-                         * failure if no usable request succeeds.
-                         */
-                        hasCriticalError =
-                            true;
+                    } catch (e) {
+                        console.log(
+                            "[ESPN JSON ERROR] " + fullUrl + " :: " + e
+                        );
+                        hasCriticalError = true;
                     }
 
+                } else if (req.status != 404) {
+                    /*
+                     * A missing/off-season endpoint is allowed to be empty.
+                     *
+                     * Other HTTP failures count as a real network/server
+                     * failure if no usable request succeeds.
+                     */
+                    hasCriticalError = true;
+                }
 
-                    completedRequests++;
-                    activeRequests--;
+                completedRequests++;
+                activeRequests--;
 
+                checkCompletion();
+                runNext();
+            };
 
-                    checkCompletion();
-                    runNext();
-                };
+            req.onerror = function() {
+                if (isTimeout) {
+                    return;
+                }
 
+                clearTimeout(watchdog);
 
-            req.onerror =
-                function() {
+                hasCriticalError = true;
+                completedRequests++;
+                activeRequests--;
 
-                    if (isTimeout) {
-                        return;
-                    }
-
-
-                    clearTimeout(
-                        watchdog
-                    );
-
-
-                    hasCriticalError =
-                        true;
-
-                    completedRequests++;
-                    activeRequests--;
-
-
-                    checkCompletion();
-                    runNext();
-                };
-
+                checkCompletion();
+                runNext();
+            };
 
             req.send();
         }
-
 
         /*
          * Seed the queue with at most four requests.
@@ -2408,33 +1623,25 @@ function getGamesForSport(
          */
         for (
             let i = 0;
-            i < MAX_CONCURRENT &&
-            i < fetchTasks.length;
+            i < MAX_CONCURRENT && i < fetchTasks.length;
             i++
         ) {
             runNext();
         }
     }
 
-
     // -----------------------------------------------------
     // COMPLETION / DEDUPE / SORT / DATE FILTER / WATCH CAP
     // -----------------------------------------------------
 
     function checkCompletion() {
-
-        if (
-            completedRequests !==
-            fetchTasks.length
-        ) {
+        if (completedRequests !== fetchTasks.length) {
             return;
         }
-
 
         if (hasLoaded) {
             return;
         }
-
 
         console.log(
             "[ESPN COMPLETE] Requests: " +
@@ -2443,40 +1650,20 @@ function getGamesForSport(
             allGames.length
         );
 
-
-        if (
-            allGames.length > 0
-        ) {
-            const seenIds =
-                new Set();
-
+        if (allGames.length > 0) {
+            const seenIds = new Set();
 
             /*
              * Dynamic discovery can find the same matchup through more than
              * one route.
              */
-            const uniqueGames =
-                allGames.filter(
-                    game => {
-
-                        if (
-                            seenIds.has(
-                                game.id
-                            )
-                        ) {
-                            return false;
-                        }
-
-
-                        seenIds.add(
-                            game.id
-                        );
-
-
-                        return true;
-                    }
-                );
-
+            const uniqueGames = allGames.filter(game => {
+                if (seenIds.has(game.id)) {
+                    return false;
+                }
+                seenIds.add(game.id);
+                return true;
+            });
 
             /*
              * LIVE games float to the top in Current folders.
@@ -2491,288 +1678,171 @@ function getGamesForSport(
              *     chronological descending so the watch cap preserves the
              *     newest completed games.
              */
-            uniqueGames.sort(
-                (a, b) => {
+            uniqueGames.sort((a, b) => {
+                const getWeight = game => {
+                    const details = String(game.details || "")
+                        .trim()
+                        .toUpperCase();
+                    return details === "LIVE" ? 0 : 1;
+                };
 
-                    const getWeight =
-                        game => {
+                const weightA = getWeight(a);
+                const weightB = getWeight(b);
 
-                            const details =
-                                String(
-                                    game.details ||
-                                    ""
-                                )
-                                    .trim()
-                                    .toUpperCase();
-
-
-                            return (
-                                details ===
-                                "LIVE"
-                            )
-                                ? 0
-                                : 1;
-                        };
-
-
-                    const weightA =
-                        getWeight(a);
-
-                    const weightB =
-                        getWeight(b);
-
-
-                    if (
-                        weightA !==
-                        weightB
-                    ) {
-                        return (
-                            weightA -
-                            weightB
-                        );
-                    }
-
-
-                    if (
-                        a.startTime &&
-                        b.startTime
-                    ) {
-                        const timeA =
-                            a.startTime
-                                .getTime();
-
-                        const timeB =
-                            b.startTime
-                                .getTime();
-
-
-                        if (
-                            !isNaN(timeA) &&
-                            !isNaN(timeB)
-                        ) {
-                            return (
-                                isPastReq
-                                    ? (
-                                        timeB -
-                                        timeA
-                                    )
-                                    : (
-                                        timeA -
-                                        timeB
-                                    )
-                            );
-                        }
-                    }
-
-
-                    return 0;
+                if (weightA !== weightB) {
+                    return weightA - weightB;
                 }
-            );
 
+                if (a.startTime && b.startTime) {
+                    const timeA = a.startTime.getTime();
+                    const timeB = b.startTime.getTime();
 
-            const nowMs =
-                Date.now();
-
-            const DAY_MS =
-                24 *
-                60 *
-                60 *
-                1000;
-
-
-            let filteredGames =
-                uniqueGames.filter(
-                    game => {
-
-                        /*
-                         * LIVE / PAST FOLDER HANDLING
-                         * ---------------------------
-                         *
-                         * ESPN Tennis scoreboards sometimes return current or
-                         * live competitions even when an older `dates=` value
-                         * was requested.
-                         *
-                         * Therefore a Past folder must reject a live game
-                         * before any LIVE override is considered.
-                         *
-                         * Current folders still retain genuinely live games
-                         * regardless of their original start timestamp. This
-                         * is essential for multi-day Cricket Test matches.
-                         */
-                        const isLive =
-                            String(
-                                game.details ||
-                                ""
-                            )
-                                .trim()
-                                .toUpperCase() ===
-                            "LIVE";
-
-
-                        if (
-                            !game.startTime ||
-                            isNaN(
-                                game.startTime
-                                    .getTime()
-                            )
-                        ) {
-                            /*
-                             * A Past folder cannot safely classify an event
-                             * without a usable start time, so reject it.
-                             *
-                             * Current folders remain permissive so an
-                             * otherwise valid ESPN matchup is not silently
-                             * lost.
-                             */
-                            return isPastReq
-                                ? false
-                                : true;
-                        }
-
-
-                        const gameTime =
-                            game.startTime
-                                .getTime();
-
-
-                        /*
-                         * EXPLICIT PAST FOLDERS
-                         * ---------------------
-                         *
-                         * Past means completed historical games only.
-                         *
-                         * Never allow a current/live match to bleed into:
-                         *
-                         * - ATP Past
-                         * - WTA Past
-                         * - Int'l Past
-                         * - IPL Past
-                         * - MLC Past
-                         *
-                         * Keep games from the previous 14 days while leaving
-                         * roughly the newest 48 hours to Current.
-                         */
-                        if (isPastReq) {
-
-                            if (isLive) {
-                                return false;
-                            }
-
-
-                            const pastLowerBound =
-                                nowMs -
-                                14 *
-                                DAY_MS;
-
-
-                            const pastUpperBound =
-                                nowMs -
-                                2 *
-                                DAY_MS;
-
-
-                            return (
-                                gameTime >=
-                                    pastLowerBound &&
-                                gameTime <
-                                    pastUpperBound
-                            );
-                        }
-
-
-                        /*
-                         * Only Current folders reach this point.
-                         *
-                         * Never discard a genuinely active game just because
-                         * its original start timestamp falls outside the
-                         * normal retrospective window.
-                         */
-                        if (isLive) {
-                            return true;
-                        }
-
-
-                        /*
-                         * CURRENT FOLDER LOOKBACK POLICY
-                         * ------------------------------
-                         *
-                         * Most sports:
-                         *     1 day
-                         *
-                         * Tennis:
-                         *     2 days
-                         *     (older matches have dedicated Past folders)
-                         *
-                         * Cricket:
-                         *     2 days for completed games.
-                         *     Older active Tests survive through LIVE override.
-                         *
-                         * Rugby:
-                         *     7 days
-                         *     (sparse schedule and no Past folders)
-                         */
-                        let lookbackDays =
-                            1;
-
-
-                        if (
-                            game.sport ==
-                            models.sports.TENNIS
-                        ) {
-                            lookbackDays =
-                                2;
-
-
-                        } else if (
-                            game.sport ==
-                            models.sports.CRICKET
-                        ) {
-                            lookbackDays =
-                                2;
-
-
-                        } else if (
-                            game.sport ==
-                            models.sports.RUGBY
-                        ) {
-                            lookbackDays =
-                                7;
-                        }
-
-
-                        const lowerBound =
-                            nowMs -
-                            lookbackDays *
-                            DAY_MS;
-
-
-                        /*
-                         * Tennis receives a smaller forward window because
-                         * ESPN can expose extremely large future brackets.
-                         */
-                        const futureLookahead =
-                            game.sport ==
-                            models.sports.TENNIS
-                                ? 7 *
-                                    DAY_MS
-                                : 14 *
-                                    DAY_MS;
-
-
-                        const upperBound =
-                            nowMs +
-                            futureLookahead;
-
-
-                        return (
-                            gameTime >=
-                                lowerBound &&
-                            gameTime <=
-                                upperBound
-                        );
+                    if (!isNaN(timeA) && !isNaN(timeB)) {
+                        return isPastReq
+                            ? (timeB - timeA)
+                            : (timeA - timeB);
                     }
-                );
+                }
 
+                return 0;
+            });
+
+            const nowMs = Date.now();
+            const DAY_MS = 24 * 60 * 60 * 1000;
+
+            let filteredGames = uniqueGames.filter(game => {
+                /*
+                 * LIVE / PAST FOLDER HANDLING
+                 * ---------------------------
+                 *
+                 * ESPN Tennis scoreboards sometimes return current or
+                 * live competitions even when an older `dates=` value
+                 * was requested.
+                 *
+                 * Therefore a Past folder must reject a live game
+                 * before any LIVE override is considered.
+                 *
+                 * Current folders still retain genuinely live games
+                 * regardless of their original start timestamp. This
+                 * is essential for multi-day Cricket Test matches.
+                 */
+                const isLive =
+                    String(game.details || "")
+                        .trim()
+                        .toUpperCase() === "LIVE";
+
+                if (
+                    !game.startTime ||
+                    isNaN(game.startTime.getTime())
+                ) {
+                    /*
+                     * A Past folder cannot safely classify an event
+                     * without a usable start time, so reject it.
+                     *
+                     * Current folders remain permissive so an
+                     * otherwise valid ESPN matchup is not silently
+                     * lost.
+                     */
+                    return isPastReq ? false : true;
+                }
+
+                const gameTime = game.startTime.getTime();
+
+                /*
+                 * EXPLICIT PAST FOLDERS
+                 * ---------------------
+                 *
+                 * Past means completed historical games only.
+                 *
+                 * Never allow a current/live match to bleed into:
+                 *
+                 * - ATP Past
+                 * - WTA Past
+                 * - Int'l Past
+                 * - IPL Past
+                 * - MLC Past
+                 *
+                 * Keep games from the previous 14 days while leaving
+                 * roughly the newest 48 hours to Current.
+                 */
+                if (isPastReq) {
+                    if (isLive) {
+                        return false;
+                    }
+
+                    const pastLowerBound = nowMs - 14 * DAY_MS;
+                    const pastUpperBound = nowMs - 2 * DAY_MS;
+
+                    return (
+                        gameTime >= pastLowerBound &&
+                        gameTime < pastUpperBound
+                    );
+                }
+
+                /*
+                 * Only Current folders reach this point.
+                 *
+                 * Never discard a genuinely active game just because
+                 * its original start timestamp falls outside the
+                 * normal retrospective window.
+                 */
+                if (isLive) {
+                    return true;
+                }
+
+                /*
+                 * CURRENT FOLDER LOOKBACK POLICY
+                 * ------------------------------
+                 *
+                 * Most sports:
+                 *     1 day
+                 *
+                 * Tennis:
+                 *     2 days
+                 *     (older matches have dedicated Past folders)
+                 *
+                 * Cricket:
+                 *     2 days for completed games.
+                 *     Older active Tests survive through LIVE override.
+                 *
+                 * MMA:
+                 *     2 days so yesterday's fight card stays visible
+                 *     without filling Aplite's 5-game cap all week.
+                 *
+                 * Rugby / AFL:
+                 *     7 days
+                 *     (weekly schedule and no Past folders)
+                 */
+                let lookbackDays = 1;
+
+                if (game.sport == models.sports.TENNIS) {
+                    lookbackDays = 2;
+                } else if (game.sport == models.sports.CRICKET) {
+                    lookbackDays = 2;
+                } else if (game.sport == models.sports.MMA) {
+                    lookbackDays = 2;
+                } else if (
+                    game.sport == models.sports.RUGBY ||
+                    game.sport == models.sports.AFL
+                ) {
+                    lookbackDays = 7;
+                }
+
+                const lowerBound = nowMs - lookbackDays * DAY_MS;
+
+                /*
+                 * Tennis receives a smaller forward window because
+                 * ESPN can expose extremely large future brackets.
+                 */
+                const futureLookahead =
+                    game.sport == models.sports.TENNIS
+                        ? 7 * DAY_MS
+                        : 14 * DAY_MS;
+
+                const upperBound = nowMs + futureLookahead;
+
+                return gameTime >= lowerBound && gameTime <= upperBound;
+            });
 
             /*
              * FAVORITES BEFORE CAP
@@ -2781,90 +1851,47 @@ function getGamesForSport(
              * Filter to the user's teams BEFORE reducing the payload for the
              * watch.
              */
-            if (
-                favoriteTeamIDs &&
-                favoriteTeamIDs.length > 0
-            ) {
-                filteredGames =
-                    filteredGames.filter(
-                        game =>
-                            favoriteTeamIDs.includes(
-                                game.team1.id
-                            ) ||
-                            favoriteTeamIDs.includes(
-                                game.team2.id
-                            )
-                    );
+            if (favoriteTeamIDs && favoriteTeamIDs.length > 0) {
+                filteredGames = filteredGames.filter(
+                    game =>
+                        favoriteTeamIDs.includes(game.team1.id) ||
+                        favoriteTeamIDs.includes(game.team2.id)
+                );
             }
-
 
             /*
              * WATCH-SPECIFIC GAME CAPS
              */
-            let maxGames =
-                MAX_GAMES_DEFAULT;
-
+            let maxGames = MAX_GAMES_DEFAULT;
 
             if (
-                typeof Pebble !==
-                    'undefined' &&
-                typeof Pebble
-                    .getActiveWatchInfo ===
-                    'function'
+                typeof Pebble !== 'undefined' &&
+                typeof Pebble.getActiveWatchInfo === 'function'
             ) {
-                let watchInfo =
-                    Pebble
-                        .getActiveWatchInfo();
-
+                let watchInfo = Pebble.getActiveWatchInfo();
 
                 if (watchInfo) {
-                    const platform =
-                        String(
-                            watchInfo.platform ||
-                            ""
-                        )
-                            .toLowerCase();
+                    const platform = String(
+                        watchInfo.platform || ""
+                    ).toLowerCase();
 
-
-                    if (
-                        platform ===
-                        "aplite"
-                    ) {
-                        maxGames =
-                            MAX_GAMES_APLITE;
-
-
+                    if (platform === "aplite") {
+                        maxGames = MAX_GAMES_APLITE;
                     } else if (
-                        platform ===
-                            "emery" ||
-                        platform ===
-                            "gabbro"
+                        platform === "emery" ||
+                        platform === "gabbro"
                     ) {
-                        maxGames =
-                            MAX_GAMES_HIGH_MEMORY;
+                        maxGames = MAX_GAMES_HIGH_MEMORY;
                     }
                 }
             }
 
-
-            if (
-                filteredGames.length >
-                maxGames
-            ) {
+            if (filteredGames.length > maxGames) {
                 console.log(
-                    "Capping payload at " +
-                    maxGames +
-                    " games."
+                    "Capping payload at " + maxGames + " games."
                 );
-
-
-                filteredGames =
-                    filteredGames.slice(
-                        0,
-                        maxGames
-                    );
+                filteredGames = filteredGames.slice(0, maxGames);
             }
-
 
             console.log(
                 "[ESPN SUCCESS] Returning " +
@@ -2872,18 +1899,10 @@ function getGamesForSport(
                 " games."
             );
 
+            finishSuccess(filteredGames);
 
-            finishSuccess(
-                filteredGames
-            );
-
-
-        } else if (
-            hasCriticalError
-        ) {
+        } else if (hasCriticalError) {
             finishError();
-
-
         } else {
             /*
              * No games is a successful empty response.
@@ -2891,7 +1910,6 @@ function getGamesForSport(
             finishSuccess([]);
         }
     }
-
 
     // -----------------------------------------------------
     // DYNAMIC ESPN LEAGUE DISCOVERY
@@ -2912,75 +1930,35 @@ function getGamesForSport(
      * limit=100 encourages the series scoreboard to expose a larger nearby
      * schedule/result set. The local 2-14-day filter then chooses Past games.
      */
-    function addCachedCricketSeriesTasks(
-        forPastFolder
-    ) {
-        if (
-            sport !=
-            models.sports.CRICKET
-        ) {
+    function addCachedCricketSeriesTasks(forPastFolder) {
+        if (sport != models.sports.CRICKET) {
             return 0;
         }
 
+        const cachedSeries = loadCricketSeriesCache();
+        let added = 0;
 
-        const cachedSeries =
-            loadCricketSeriesCache();
+        cachedSeries.forEach(entry => {
+            const dynamicUrl =
+                "https://site.api.espn.com/apis/site/v2/sports/cricket/" +
+                encodeURIComponent(String(entry.id));
 
-
-        let added =
-            0;
-
-
-        cachedSeries.forEach(
-            entry => {
-
-                const dynamicUrl =
-                    "https://site.api.espn.com/apis/site/v2/sports/cricket/" +
-                    encodeURIComponent(
-                        String(
-                            entry.id
-                        )
-                    );
-
-
-                if (
-                    fetchTasks.some(
-                        task =>
-                            task.url ===
-                            dynamicUrl
-                    )
-                ) {
-                    return;
-                }
-
-
-                fetchTasks.push({
-                    url:
-                        dynamicUrl,
-
-                    league:
-                        entry.league ||
-                        (
-                            forPastFolder
-                                ? "Int'l Past"
-                                : "International"
-                        ),
-
-                    params:
-                        forPastFolder
-                            ? "limit=100"
-                            : ""
-                });
-
-
-                added++;
+            if (fetchTasks.some(task => task.url === dynamicUrl)) {
+                return;
             }
-        );
 
+            fetchTasks.push({
+                url: dynamicUrl,
+                league:
+                    entry.league ||
+                    (forPastFolder ? "Int'l Past" : "International"),
+                params: forPastFolder ? "limit=100" : ""
+            });
 
-        if (
-            added > 0
-        ) {
+            added++;
+        });
+
+        if (added > 0) {
             console.log(
                 "[CRICKET CACHE] Added " +
                 added +
@@ -2988,10 +1966,8 @@ function getGamesForSport(
             );
         }
 
-
         return added;
     }
-
 
     /*
      * Normal broad loads may use discovery.
@@ -3004,71 +1980,39 @@ function getGamesForSport(
     let allowDiscovery =
         leagueIndex == null ||
         (
-            sport ==
-                models.sports.CRICKET &&
-            (
-                leagueIndex == 0 ||
-                leagueIndex == 1
-            )
+            sport == models.sports.CRICKET &&
+            (leagueIndex == 0 || leagueIndex == 1)
         );
 
-
     if (allowDiscovery) {
-        let sportString =
-            "";
-
+        let sportString = "";
 
         switch (sport) {
-
             case models.sports.MLB:
-                sportString =
-                    "baseball";
+                sportString = "baseball";
                 break;
-
-
             case models.sports.NHL:
-                sportString =
-                    "hockey";
+                sportString = "hockey";
                 break;
-
-
             case models.sports.MLS:
-                sportString =
-                    "soccer";
+                sportString = "soccer";
                 break;
-
-
             case models.sports.RUGBY:
-                sportString =
-                    "rugby";
+                sportString = "rugby";
                 break;
-
-
             case models.sports.CRICKET:
-                sportString =
-                    "cricket";
+                sportString = "cricket";
                 break;
-
-
             case models.sports.TENNIS:
-                sportString =
-                    "tennis";
+                sportString = "tennis";
                 break;
-
-
             default:
-                sportString =
-                    "";
+                sportString = "";
                 break;
         }
 
-
-        if (
-            sportString !== ""
-        ) {
-            let headerRetryCount =
-                0;
-
+        if (sportString !== "") {
+            let headerRetryCount = 0;
 
             /*
              * Start the normal scoreboard queue after discovery.
@@ -3079,461 +2023,267 @@ function getGamesForSport(
              * There is deliberately NO generic
              * /sports/cricket/scoreboard fallback here.
              */
-            const finishHeaderDiscovery =
-                function(
-                    useCricketCache
+            const finishHeaderDiscovery = function(useCricketCache) {
+                if (
+                    useCricketCache &&
+                    sport == models.sports.CRICKET
                 ) {
+                    addCachedCricketSeriesTasks(
+                        isCricketInternationalPast
+                    );
+                }
 
-                    if (
-                        useCricketCache &&
-                        sport ==
-                        models.sports.CRICKET
-                    ) {
-                        addCachedCricketSeriesTasks(
-                            isCricketInternationalPast
-                        );
-                    }
+                if (fetchTasks.length === 0) {
+                    checkCompletion();
+                } else {
+                    executeFetchTasks();
+                }
+            };
 
+            const fetchHeader = function() {
+                let headerReq = new XMLHttpRequest();
 
-                    if (
-                        fetchTasks.length ===
-                        0
-                    ) {
-                        checkCompletion();
+                let headerUrl =
+                    'https://site.api.espn.com/apis/personalized/v2/scoreboard/header?sport=' +
+                    encodeURIComponent(sportString) +
+                    '&t=' +
+                    Date.now();
 
-                    } else {
-                        executeFetchTasks();
-                    }
-                };
+                console.log("[ESPN HEADER REQUEST] " + headerUrl);
 
+                headerReq.open('GET', headerUrl);
 
-            const fetchHeader =
-                function() {
+                let isHeaderTimeout = false;
 
-                    let headerReq =
-                        new XMLHttpRequest();
+                let headerWatchdog = setTimeout(function() {
+                    isHeaderTimeout = true;
 
+                    try {
+                        headerReq.abort();
+                    } catch (e) {}
 
-                    let headerUrl =
-                        'https://site.api.espn.com/apis/personalized/v2/scoreboard/header?sport=' +
-                        encodeURIComponent(
+                    if (headerRetryCount < 1) {
+                        headerRetryCount++;
+                        console.log(
+                            "[ESPN HEADER RETRY] timeout sport=" +
                             sportString
-                        ) +
-                        '&t=' +
-                        Date.now();
-
+                        );
+                        setTimeout(fetchHeader, 1000);
+                        return;
+                    }
 
                     console.log(
-                        "[ESPN HEADER REQUEST] " +
-                        headerUrl
+                        "[ESPN DISCOVERY FALLBACK] timeout sport=" +
+                        sportString +
+                        " tasks=" +
+                        fetchTasks.length
                     );
 
+                    finishHeaderDiscovery(true);
+                }, 10000);
 
-                    headerReq.open(
-                        'GET',
-                        headerUrl
+                headerReq.onload = function() {
+                    if (isHeaderTimeout) {
+                        return;
+                    }
+
+                    clearTimeout(headerWatchdog);
+
+                    if (headerReq.readyState != 4) {
+                        return;
+                    }
+
+                    console.log(
+                        "[ESPN HEADER RESPONSE] " +
+                        headerReq.status +
+                        " sport=" +
+                        sportString
                     );
 
+                    if (headerReq.status == 200) {
+                        try {
+                            let headerData = JSON.parse(
+                                headerReq.responseText
+                            );
 
-                    let isHeaderTimeout =
-                        false;
-
-
-                    let headerWatchdog =
-                        setTimeout(
-                            function() {
-
-                                isHeaderTimeout =
-                                    true;
-
-
-                                try {
-                                    headerReq.abort();
-
-                                } catch (e) {}
-
-
-                                if (
-                                    headerRetryCount <
-                                    1
-                                ) {
-                                    headerRetryCount++;
-
-
-                                    console.log(
-                                        "[ESPN HEADER RETRY] timeout sport=" +
-                                        sportString
-                                    );
-
-
-                                    setTimeout(
-                                        fetchHeader,
-                                        1000
-                                    );
-
-
-                                    return;
-                                }
-
+                            if (
+                                headerData.sports &&
+                                headerData.sports.length > 0
+                            ) {
+                                let activeLeagues =
+                                    headerData.sports[0].leagues || [];
 
                                 console.log(
-                                    "[ESPN DISCOVERY FALLBACK] timeout sport=" +
+                                    "[ESPN DISCOVERY] " +
                                     sportString +
-                                    " tasks=" +
-                                    fetchTasks.length
+                                    " active leagues=" +
+                                    activeLeagues.length
                                 );
 
+                                if (sport == models.sports.CRICKET) {
+                                    saveCricketSeriesCache(activeLeagues);
 
-                                finishHeaderDiscovery(
-                                    true
-                                );
-                            },
+                                    /*
+                                     * For Past, use the merged
+                                     * current + recently-seen cache.
+                                     */
+                                    if (isCricketInternationalPast) {
+                                        addCachedCricketSeriesTasks(true);
+                                    }
+                                }
 
-                            10000
-                        );
-
-
-                    headerReq.onload =
-                        function() {
-
-                            if (
-                                isHeaderTimeout
-                            ) {
-                                return;
-                            }
-
-
-                            clearTimeout(
-                                headerWatchdog
-                            );
-
-
-                            if (
-                                headerReq.readyState !=
-                                4
-                            ) {
-                                return;
-                            }
-
-
-                            console.log(
-                                "[ESPN HEADER RESPONSE] " +
-                                headerReq.status +
-                                " sport=" +
-                                sportString
-                            );
-
-
-                            if (
-                                headerReq.status ==
-                                200
-                            ) {
-                                try {
-                                    let headerData =
-                                        JSON.parse(
-                                            headerReq
-                                                .responseText
-                                        );
-
-
-                                    if (
-                                        headerData.sports &&
-                                        headerData
-                                            .sports
-                                            .length >
-                                            0
-                                    ) {
-                                        let activeLeagues =
-                                            headerData
-                                                .sports[0]
-                                                .leagues ||
-                                            [];
-
-
-                                        console.log(
-                                            "[ESPN DISCOVERY] " +
-                                            sportString +
-                                            " active leagues=" +
-                                            activeLeagues.length
-                                        );
-
-
-                                        if (
-                                            sport ==
-                                            models.sports.CRICKET
-                                        ) {
-                                            saveCricketSeriesCache(
-                                                activeLeagues
-                                            );
-
-
-                                            /*
-                                             * For Past, use the merged
-                                             * current + recently-seen cache.
-                                             */
-                                            if (
-                                                isCricketInternationalPast
-                                            ) {
-                                                addCachedCricketSeriesTasks(
-                                                    true
-                                                );
-                                            }
-                                        }
-
-
-                                        activeLeagues
-                                            .forEach(
-                                                league => {
-
-                                                    if (
-                                                        !league.id
-                                                    ) {
-                                                        return;
-                                                    }
-
-
-                                                    let leagueIdentifier =
-                                                        sport ==
-                                                        models
-                                                            .sports
-                                                            .CRICKET
-                                                            ? league.id
-                                                            : (
-                                                                league.slug ||
-                                                                league
-                                                                    .abbreviation ||
-                                                                league.id
-                                                            );
-
-
-                                                    let dynamicUrl =
-                                                        "https://site.api.espn.com/apis/site/v2/sports/" +
-                                                        encodeURIComponent(
-                                                            sportString
-                                                        ) +
-                                                        "/" +
-                                                        encodeURIComponent(
-                                                            String(
-                                                                leagueIdentifier
-                                                            )
-                                                                .toLowerCase()
-                                                        );
-
-
-                                                    let dynamicLeagueName =
-                                                        league
-                                                            .abbreviation ||
-                                                        league.name ||
-                                                        "International";
-
-
-                                                    /*
-                                                     * Use the header for
-                                                     * discovery, then query the
-                                                     * normal series scoreboard
-                                                     * for full competition
-                                                     * objects.
-                                                     */
-                                                    if (
-                                                        !fetchTasks
-                                                            .some(
-                                                                task =>
-                                                                    task.url ===
-                                                                    dynamicUrl
-                                                            )
-                                                    ) {
-                                                        let currentParams =
-                                                            "";
-
-
-                                                        if (
-                                                            isCricketInternationalPast
-                                                        ) {
-                                                            currentParams =
-                                                                "limit=100";
-
-
-                                                        } else if (
-                                                            fetchTasks.length >
-                                                            0
-                                                        ) {
-                                                            currentParams =
-                                                                fetchTasks[0]
-                                                                    .params ||
-                                                                "";
-                                                        }
-
-
-                                                        fetchTasks.push({
-                                                            url:
-                                                                dynamicUrl,
-
-                                                            league:
-                                                                dynamicLeagueName,
-
-                                                            params:
-                                                                currentParams
-                                                        });
-                                                    }
-                                                }
-                                            );
+                                activeLeagues.forEach(league => {
+                                    if (!league.id) {
+                                        return;
                                     }
 
+                                    let leagueIdentifier =
+                                        sport == models.sports.CRICKET
+                                            ? league.id
+                                            : (
+                                                league.slug ||
+                                                league.abbreviation ||
+                                                league.id
+                                            );
 
-                                } catch (e) {
-                                    console.log(
-                                        "[ESPN HEADER PARSE ERROR] " +
-                                        e
-                                    );
-                                }
+                                    let dynamicUrl =
+                                        "https://site.api.espn.com/apis/site/v2/sports/" +
+                                        encodeURIComponent(sportString) +
+                                        "/" +
+                                        encodeURIComponent(
+                                            String(leagueIdentifier).toLowerCase()
+                                        );
 
+                                    let dynamicLeagueName =
+                                        league.abbreviation ||
+                                        league.name ||
+                                        "International";
 
-                                console.log(
-                                    "[ESPN DISCOVERY COMPLETE] " +
-                                    sportString +
-                                    " tasks=" +
-                                    fetchTasks.length
-                                );
+                                    /*
+                                     * Use the header for
+                                     * discovery, then query the
+                                     * normal series scoreboard
+                                     * for full competition
+                                     * objects.
+                                     */
+                                    if (
+                                        !fetchTasks.some(
+                                            task => task.url === dynamicUrl
+                                        )
+                                    ) {
+                                        let currentParams = "";
 
+                                        if (isCricketInternationalPast) {
+                                            currentParams = "limit=100";
+                                        } else if (fetchTasks.length > 0) {
+                                            currentParams =
+                                                fetchTasks[0].params || "";
+                                        }
 
-                                finishHeaderDiscovery(
-                                    false
-                                );
-
-
-                                return;
+                                        fetchTasks.push({
+                                            url: dynamicUrl,
+                                            league: dynamicLeagueName,
+                                            params: currentParams
+                                        });
+                                    }
+                                });
                             }
 
+                        } catch (e) {
+                            console.log("[ESPN HEADER PARSE ERROR] " + e);
+                        }
 
-                            /*
-                             * Retry one transient 5xx/429 response.
-                             */
-                            if (
-                                (
-                                    headerReq.status >=
-                                        500 ||
-                                    headerReq.status ==
-                                        429
-                                ) &&
-                                headerRetryCount <
-                                    1
-                            ) {
-                                headerRetryCount++;
+                        console.log(
+                            "[ESPN DISCOVERY COMPLETE] " +
+                            sportString +
+                            " tasks=" +
+                            fetchTasks.length
+                        );
 
+                        finishHeaderDiscovery(false);
+                        return;
+                    }
 
-                                console.log(
-                                    "[ESPN HEADER RETRY] status=" +
-                                    headerReq.status +
-                                    " sport=" +
-                                    sportString
-                                );
+                    /*
+                     * Retry one transient 5xx/429 response.
+                     */
+                    if (
+                        (
+                            headerReq.status >= 500 ||
+                            headerReq.status == 429
+                        ) &&
+                        headerRetryCount < 1
+                    ) {
+                        headerRetryCount++;
 
+                        console.log(
+                            "[ESPN HEADER RETRY] status=" +
+                            headerReq.status +
+                            " sport=" +
+                            sportString
+                        );
 
-                                setTimeout(
-                                    fetchHeader,
-                                    1000
-                                );
+                        setTimeout(fetchHeader, 1000);
+                        return;
+                    }
 
+                    console.log(
+                        "[ESPN DISCOVERY FALLBACK] status=" +
+                        headerReq.status +
+                        " sport=" +
+                        sportString +
+                        " tasks=" +
+                        fetchTasks.length
+                    );
 
-                                return;
-                            }
-
-
-                            console.log(
-                                "[ESPN DISCOVERY FALLBACK] status=" +
-                                headerReq.status +
-                                " sport=" +
-                                sportString +
-                                " tasks=" +
-                                fetchTasks.length
-                            );
-
-
-                            finishHeaderDiscovery(
-                                true
-                            );
-                        };
-
-
-                    headerReq.onerror =
-                        function() {
-
-                            if (
-                                isHeaderTimeout
-                            ) {
-                                return;
-                            }
-
-
-                            clearTimeout(
-                                headerWatchdog
-                            );
-
-
-                            if (
-                                headerRetryCount <
-                                1
-                            ) {
-                                headerRetryCount++;
-
-
-                                console.log(
-                                    "[ESPN HEADER RETRY] network sport=" +
-                                    sportString
-                                );
-
-
-                                setTimeout(
-                                    fetchHeader,
-                                    1000
-                                );
-
-
-                                return;
-                            }
-
-
-                            console.log(
-                                "[ESPN DISCOVERY FALLBACK] network sport=" +
-                                sportString +
-                                " tasks=" +
-                                fetchTasks.length
-                            );
-
-
-                            finishHeaderDiscovery(
-                                true
-                            );
-                        };
-
-
-                    headerReq.send();
+                    finishHeaderDiscovery(true);
                 };
 
+                headerReq.onerror = function() {
+                    if (isHeaderTimeout) {
+                        return;
+                    }
+
+                    clearTimeout(headerWatchdog);
+
+                    if (headerRetryCount < 1) {
+                        headerRetryCount++;
+
+                        console.log(
+                            "[ESPN HEADER RETRY] network sport=" +
+                            sportString
+                        );
+
+                        setTimeout(fetchHeader, 1000);
+                        return;
+                    }
+
+                    console.log(
+                        "[ESPN DISCOVERY FALLBACK] network sport=" +
+                        sportString +
+                        " tasks=" +
+                        fetchTasks.length
+                    );
+
+                    finishHeaderDiscovery(true);
+                };
+
+                headerReq.send();
+            };
 
             fetchHeader();
 
-
         } else {
-            if (
-                fetchTasks.length ===
-                0
-            ) {
+            if (fetchTasks.length === 0) {
                 checkCompletion();
-
             } else {
                 executeFetchTasks();
             }
         }
 
-
     } else {
-        if (
-            fetchTasks.length ===
-            0
-        ) {
+        if (fetchTasks.length === 0) {
             checkCompletion();
-
         } else {
             executeFetchTasks();
         }
@@ -3545,39 +2295,21 @@ function getGamesForSport(
 // FETCH INDIVIDUAL GAME
 // =========================================================
 
-function getGame(
-    id,
-    sport,
-    onLoad,
-    onError
-) {
+function getGame(id, sport, onLoad, onError) {
     getGamesForSport(
         sport,
         null,
-
         games => {
+            let foundGame = games.find(
+                game => game.id == id || game.eventId == id
+            );
 
-            let foundGame =
-                games.find(
-                    game =>
-                        game.id == id ||
-                        game.eventId == id
-                );
-
-
-            if (
-                foundGame ==
-                undefined
-            ) {
+            if (foundGame == undefined) {
                 onError();
-
             } else {
-                onLoad(
-                    foundGame
-                );
+                onLoad(foundGame);
             }
         },
-
         onError
     );
 }
@@ -3587,56 +2319,30 @@ function getGame(
 // PARSE ESPN GAME EVENT
 // =========================================================
 
-function parseEvent(
-    sport,
-    league,
-    event,
-    sourceUrl
-) {
+function parseEvent(sport, league, event, sourceUrl) {
     const competition =
-        event.competitions &&
-        event.competitions.length > 0
+        event.competitions && event.competitions.length > 0
             ? event.competitions[0]
             : null;
-
 
     if (!competition) {
         return null;
     }
 
+    const competitors = competition.competitors || [];
+    const date = new Date(competition.date);
 
-    const competitors =
-        competition.competitors ||
-        [];
+    const status = competition.status || {
+        type: {
+            name: "STATUS_SCHEDULED",
+            shortDetail: ""
+        }
+    };
 
-
-    const date =
-        new Date(
-            competition.date
-        );
-
-
-    const status =
-        competition.status || {
-            type: {
-                name:
-                    "STATUS_SCHEDULED",
-
-                shortDetail:
-                    ""
-            }
-        };
-
-
-    const statusType =
-        status.type || {
-            name:
-                "STATUS_SCHEDULED",
-
-            shortDetail:
-                ""
-        };
-
+    const statusType = status.type || {
+        name: "STATUS_SCHEDULED",
+        shortDetail: ""
+    };
 
     /*
      * UI STATE NORMALIZATION
@@ -3650,192 +2356,100 @@ function parseEvent(
      *     details = "LIVE"
      *     time    = ESPN shortDetail
      */
-    let [
-        details,
-        time
-    ] = (
-        function(type) {
+    let [details, time] = (function(type) {
+        const shortDetail = String(
+            statusType.shortDetail || ""
+        ).trim();
 
-            const shortDetail =
-                String(
-                    statusType
-                        .shortDetail ||
-                    ""
-                )
-                    .trim();
+        const validDate = !isNaN(date.getTime());
 
+        // ---------------------------------------------
+        // FINAL
+        // ---------------------------------------------
 
-            const validDate =
-                !isNaN(
-                    date.getTime()
-                );
-
-
-            // ---------------------------------------------
-            // FINAL
-            // ---------------------------------------------
-
-            if (
-                type ===
-                "STATUS_FINAL"
-            ) {
-                return [
-                    validDate
-                        ? utils
-                            .dateToScheduleDate(
-                                date
-                            )
-                        : "Final",
-
-                    "Final"
-                ];
-            }
-
-
-            // ---------------------------------------------
-            // POSTPONED / CANCELED
-            // ---------------------------------------------
-
-            if (
-                type ===
-                "STATUS_POSTPONED"
-            ) {
-                return [
-                    "Postponed",
-                    "TBA"
-                ];
-            }
-
-
-            if (
-                type ===
-                    "STATUS_CANCELED" ||
-                type ===
-                    "STATUS_CANCELLED"
-            ) {
-                return [
-                    "Canceled",
-                    "TBA"
-                ];
-            }
-
-
-            // ---------------------------------------------
-            // CRICKET SCHEDULED
-            // ---------------------------------------------
-
-            if (
-                type ===
-                    "STATUS_SCHEDULED" &&
-                sport ==
-                    models.sports.CRICKET
-            ) {
-                let localDate =
-                    validDate
-                        ? utils
-                            .dateToScheduleDate(
-                                date
-                            )
-                        : "Scheduled";
-
-
-                let localTime =
-                    "";
-
-
-                if (validDate) {
-                    let hours =
-                        date.getHours();
-
-                    let minutes =
-                        date.getMinutes();
-
-
-                    let ampm =
-                        hours >= 12
-                            ? 'PM'
-                            : 'AM';
-
-
-                    hours =
-                        hours % 12 ||
-                        12;
-
-
-                    localTime =
-                        hours +
-                        ':' +
-                        (
-                            minutes < 10
-                                ? '0'
-                                : ''
-                        ) +
-                        minutes +
-                        ' ' +
-                        ampm;
-
-
-                } else {
-                    localTime =
-                        shortDetail ||
-                        "Upcoming";
-                }
-
-
-                return [
-                    localDate,
-                    localTime
-                ];
-            }
-
-
-            // ---------------------------------------------
-            // OTHER SCHEDULED SPORTS
-            // ---------------------------------------------
-
-            if (
-                type ===
-                "STATUS_SCHEDULED"
-            ) {
-                return (
-                    validDate
-                        ? [
-                            utils.dateToScheduleDate(
-                                date
-                            ),
-
-                            utils.dateToScheduleTime(
-                                date
-                            )
-                        ]
-                        : [
-                            "Scheduled",
-                            "TBA"
-                        ]
-                );
-            }
-
-
-            // ---------------------------------------------
-            // LIVE / IN PROGRESS
-            // ---------------------------------------------
-
+        if (type === "STATUS_FINAL") {
             return [
-                "LIVE",
-
-                shortDetail
-                    ? shortDetail.replace(
-                        "- ",
-                        ""
-                    )
-                    : "LIVE"
+                validDate
+                    ? utils.dateToScheduleDate(date)
+                    : "Final",
+                "Final"
             ];
         }
-    )(
-        statusType.name ||
-        "STATUS_SCHEDULED"
-    );
 
+        // ---------------------------------------------
+        // POSTPONED / CANCELED
+        // ---------------------------------------------
+
+        if (type === "STATUS_POSTPONED") {
+            return ["Postponed", "TBA"];
+        }
+
+        if (
+            type === "STATUS_CANCELED" ||
+            type === "STATUS_CANCELLED"
+        ) {
+            return ["Canceled", "TBA"];
+        }
+
+        // ---------------------------------------------
+        // CRICKET SCHEDULED
+        // ---------------------------------------------
+
+        if (
+            type === "STATUS_SCHEDULED" &&
+            sport == models.sports.CRICKET
+        ) {
+            let localDate = validDate
+                ? utils.dateToScheduleDate(date)
+                : "Scheduled";
+
+            let localTime = "";
+
+            if (validDate) {
+                let hours = date.getHours();
+                let minutes = date.getMinutes();
+                let ampm = hours >= 12 ? 'PM' : 'AM';
+
+                hours = hours % 12 || 12;
+
+                localTime =
+                    hours +
+                    ':' +
+                    (minutes < 10 ? '0' : '') +
+                    minutes +
+                    ' ' +
+                    ampm;
+            } else {
+                localTime = shortDetail || "Upcoming";
+            }
+
+            return [localDate, localTime];
+        }
+
+        // ---------------------------------------------
+        // OTHER SCHEDULED SPORTS
+        // ---------------------------------------------
+
+        if (type === "STATUS_SCHEDULED") {
+            return validDate
+                ? [
+                    utils.dateToScheduleDate(date),
+                    utils.dateToScheduleTime(date)
+                ]
+                : ["Scheduled", "TBA"];
+        }
+
+        // ---------------------------------------------
+        // LIVE / IN PROGRESS
+        // ---------------------------------------------
+
+        return [
+            "LIVE",
+            shortDetail
+                ? shortDetail.replace("- ", "")
+                : "LIVE"
+        ];
+    })(statusType.name || "STATUS_SCHEDULED");
 
     /*
      * ESPN occasionally reports midnight as a placeholder.
@@ -3846,20 +2460,11 @@ function parseEvent(
         time === "12:00 AM" ||
         time === "12:00am"
     ) {
-        time =
-            "TBA";
+        time = "TBA";
     }
 
-
-    const id =
-        event.id ||
-        "0";
-
-
-    const eventId =
-        event.eventId ||
-        id;
-
+    const id = event.id || "0";
+    const eventId = event.eventId || id;
 
     /*
      * Remember the exact scoreboard route that produced this game.
@@ -3868,271 +2473,107 @@ function parseEvent(
      * removing the stale cache-buster.
      */
     if (sourceUrl) {
-        gameScoreboardUrls[id] =
-            stripCacheBuster(
-                sourceUrl
-            );
+        gameScoreboardUrls[id] = stripCacheBuster(sourceUrl);
     }
 
-
     const competitor1 =
-        competitors.length > 1
-            ? competitors[1]
-            : {};
-
-
+        competitors.length > 1 ? competitors[1] : {};
     const competitor2 =
-        competitors.length > 0
-            ? competitors[0]
-            : {};
-
+        competitors.length > 0 ? competitors[0] : {};
 
     const team1 =
         competitor1.team ||
-        competitor1.athlete || {
-            id:
-                "0"
-        };
-
+        competitor1.athlete || { id: "0" };
 
     const team2 =
         competitor2.team ||
-        competitor2.athlete || {
-            id:
-                "0"
-        };
-
+        competitor2.athlete || { id: "0" };
 
     /*
      * Pebble has very little horizontal score-screen room.
      */
-    let t1Abbrev =
-        String(
-            team1.abbreviation ||
-            team1.shortName ||
-            team1.lastName ||
-            "TBD"
-        )
-            .trim();
+    let t1Abbrev = String(
+        team1.abbreviation ||
+        team1.shortName ||
+        team1.lastName ||
+        "TBD"
+    ).trim();
 
+    let t2Abbrev = String(
+        team2.abbreviation ||
+        team2.shortName ||
+        team2.lastName ||
+        "TBD"
+    ).trim();
 
-    let t2Abbrev =
-        String(
-            team2.abbreviation ||
-            team2.shortName ||
-            team2.lastName ||
-            "TBD"
-        )
-            .trim();
-
-
-    if (
-        t1Abbrev.length >
-        5
-    ) {
-        t1Abbrev =
-            t1Abbrev
-                .substring(
-                    0,
-                    5
-                )
-                .trim();
+    if (t1Abbrev.length > 5) {
+        t1Abbrev = t1Abbrev.substring(0, 5).trim();
     }
 
-
-    if (
-        t2Abbrev.length >
-        5
-    ) {
-        t2Abbrev =
-            t2Abbrev
-                .substring(
-                    0,
-                    5
-                )
-                .trim();
+    if (t2Abbrev.length > 5) {
+        t2Abbrev = t2Abbrev.substring(0, 5).trim();
     }
-
 
     /*
      * Do not display fake 0-0 scores before an event begins.
      */
     const noScoreYet =
-        statusType.name ===
-            "STATUS_SCHEDULED" ||
-        statusType.name ===
-            "STATUS_POSTPONED" ||
-        statusType.name ===
-            "STATUS_CANCELED" ||
-        statusType.name ===
-            "STATUS_CANCELLED";
+        statusType.name === "STATUS_SCHEDULED" ||
+        statusType.name === "STATUS_POSTPONED" ||
+        statusType.name === "STATUS_CANCELED" ||
+        statusType.name === "STATUS_CANCELLED";
 
+    let score1 = noScoreYet
+        ? ""
+        : String(competitor1.score == null ? "" : competitor1.score);
 
-    let score1 =
-        noScoreYet
-            ? ""
-            : String(
-                competitor1.score ==
-                    null
-                    ? ""
-                    : competitor1.score
-            );
-
-
-    let score2 =
-        noScoreYet
-            ? ""
-            : String(
-                competitor2.score ==
-                    null
-                    ? ""
-                    : competitor2.score
-            );
-
+    let score2 = noScoreYet
+        ? ""
+        : String(competitor2.score == null ? "" : competitor2.score);
 
     // -----------------------------------------------------
     // TENNIS SET SCORING
     // -----------------------------------------------------
 
-    if (
-        sport ==
-            models.sports.TENNIS &&
-        !noScoreYet
-    ) {
-        /*
-         * Some Tennis competitions omit the aggregate set score.
-         */
-        if (
-            !score1 &&
-            competitor1.linescores
-        ) {
-            let sets =
-                0;
-
-
-            competitor1
-                .linescores
-                .forEach(
-                    line => {
-
-                        if (
-                            line.winner
-                        ) {
-                            sets++;
-                        }
-                    }
-                );
-
-
-            score1 =
-                sets.toString();
-        }
-
-
-        if (
-            !score2 &&
-            competitor2.linescores
-        ) {
-            let sets =
-                0;
-
-
-            competitor2
-                .linescores
-                .forEach(
-                    line => {
-
-                        if (
-                            line.winner
-                        ) {
-                            sets++;
-                        }
-                    }
-                );
-
-
-            score2 =
-                sets.toString();
-        }
-
-
-        if (!score1) {
-            score1 =
-                "0";
-        }
-
-
-        if (!score2) {
-            score2 =
-                "0";
-        }
+    if (sport == models.sports.TENNIS && !noScoreYet) {
+        score1 = getTennisCompetitorScore(competitor1);
+        score2 = getTennisCompetitorScore(competitor2);
     }
-
 
     // -----------------------------------------------------
     // CRICKET SCORE CLEANUP
     // -----------------------------------------------------
 
-    if (
-        sport ==
-        models.sports.CRICKET
-    ) {
+    if (sport == models.sports.CRICKET) {
         /*
          * Remove parenthetical overflow that does not fit on Pebble.
          */
         if (score1) {
-            score1 =
-                score1
-                    .split(" (")[0]
-                    .trim();
+            score1 = score1.split(" (")[0].trim();
         }
-
 
         if (score2) {
-            score2 =
-                score2
-                    .split(" (")[0]
-                    .trim();
+            score2 = score2.split(" (")[0].trim();
         }
-
 
         /*
          * For multi-innings strings, display the latest innings in the compact
          * score field.
          */
-        if (
-            score1 &&
-            score1.indexOf("&") !==
-                -1
-        ) {
-            score1 =
-                score1
-                    .split("&")
-                    .pop()
-                    .trim();
+        if (score1 && score1.indexOf("&") !== -1) {
+            score1 = score1.split("&").pop().trim();
         }
 
-
-        if (
-            score2 &&
-            score2.indexOf("&") !==
-                -1
-        ) {
-            score2 =
-                score2
-                    .split("&")
-                    .pop()
-                    .trim();
+        if (score2 && score2.indexOf("&") !== -1) {
+            score2 = score2.split("&").pop().trim();
         }
     }
-
 
     /*
      * Possession is meaningful only while a game is in progress.
      */
     const possession =
-        statusType.name !=
-            "STATUS_IN_PROGRESS"
+        statusType.name != "STATUS_IN_PROGRESS"
             ? models.possession.NONE
             : gamePossession(
                 sport,
@@ -4141,73 +2582,25 @@ function parseEvent(
                 team2
             );
 
+    const team1Record = getCompetitorRecordSummary(competitor1);
+    const team2Record = getCompetitorRecordSummary(competitor2);
 
-    const team1Record =
-        (
-            competitor1.records &&
-            competitor1.records.length >
-                0
-        )
-            ? competitor1
-                .records[0]
-                .summary
-            : (
-                competitor1.record &&
-                competitor1.record.length >
-                    0
-            )
-                ? competitor1
-                    .record[0]
-                    .summary
-                : "";
-
-
-    const team2Record =
-        (
-            competitor2.records &&
-            competitor2.records.length >
-                0
-        )
-            ? competitor2
-                .records[0]
-                .summary
-            : (
-                competitor2.record &&
-                competitor2.record.length >
-                    0
-            )
-                ? competitor2
-                    .record[0]
-                    .summary
-                : "";
-
-
-    let broadcast =
-        "Unlisted";
-
+    let broadcast = "Unlisted";
 
     if (
         competition.broadcasts &&
-        competition.broadcasts.length >
-            0
+        competition.broadcasts.length > 0
     ) {
-        let names =
-            competition
-                .broadcasts[0]
-                .names;
-
+        let names = competition.broadcasts[0].names;
 
         if (
             names &&
             names.length > 0 &&
-            names[0].trim() !==
-                ""
+            names[0].trim() !== ""
         ) {
-            broadcast =
-                names[0];
+            broadcast = names[0];
         }
     }
-
 
     /*
      * Dynamic Cricket series use names such as "Sheff Shield" or tour names
@@ -4216,129 +2609,54 @@ function parseEvent(
      * Keep all dynamic Cricket teams inside the International namespace so
      * favorites remain stable.
      */
-    let offset =
-        LEAGUE_OFFSETS[
-            league
-        ];
+    let offset = LEAGUE_OFFSETS[league];
 
-
-    if (
-        offset === undefined &&
-        sport ==
-        models.sports.CRICKET
-    ) {
-        offset =
-            LEAGUE_OFFSETS[
-                "International"
-            ];
+    if (offset === undefined && sport == models.sports.CRICKET) {
+        offset = LEAGUE_OFFSETS["International"];
     }
 
-
-    if (
-        offset === undefined
-    ) {
-        offset =
-            0;
+    if (offset === undefined) {
+        offset = 0;
     }
 
+    const rawT1Id = team1.id || competitor1.id || "0";
+    const rawT2Id = team2.id || competitor2.id || "0";
 
-    const rawT1Id =
-        team1.id ||
-        competitor1.id ||
-        "0";
+    const parsedT1 = parseInt(rawT1Id, 10);
+    const parsedT2 = parseInt(rawT2Id, 10);
 
+    const t1Id = String((isNaN(parsedT1) ? 0 : parsedT1) + offset);
+    const t2Id = String((isNaN(parsedT2) ? 0 : parsedT2) + offset);
 
-    const rawT2Id =
-        team2.id ||
-        competitor2.id ||
-        "0";
-
-
-    const parsedT1 =
-        parseInt(
-            rawT1Id,
-            10
-        );
-
-
-    const parsedT2 =
-        parseInt(
-            rawT2Id,
-            10
-        );
-
-
-    const t1Id =
-        String(
-            (
-                isNaN(parsedT1)
-                    ? 0
-                    : parsedT1
-            ) +
-            offset
-        );
-
-
-    const t2Id =
-        String(
-            (
-                isNaN(parsedT2)
-                    ? 0
-                    : parsedT2
-            ) +
-            offset
-        );
-
-
-    var gameObj =
-        new models.Game(
-            id,
-            sport,
-
-            new models.Team(
-                t1Abbrev
-                    .toUpperCase(),
-
-                t1Id,
-                team1Record,
-
-                competitor1.winner ===
-                    true
-            ),
-
-            score1,
-
-            new models.Team(
-                t2Abbrev
-                    .toUpperCase(),
-
-                t2Id,
-                team2Record,
-
-                competitor2.winner ===
-                    true
-            ),
-
-            score2,
-            possession,
-            time,
-            details,
-            broadcast
-        );
-
+    var gameObj = new models.Game(
+        id,
+        sport,
+        new models.Team(
+            t1Abbrev.toUpperCase(),
+            t1Id,
+            team1Record,
+            competitor1.winner === true
+        ),
+        score1,
+        new models.Team(
+            t2Abbrev.toUpperCase(),
+            t2Id,
+            team2Record,
+            competitor2.winner === true
+        ),
+        score2,
+        possession,
+        time,
+        details,
+        broadcast
+    );
 
     /*
      * JS-only metadata.
      */
-    gameObj.eventId =
-        eventId;
-
-    gameObj.startTime =
-        date;
-
-    gameObj.league =
-        league;
-
+    gameObj.eventId = eventId;
+    gameObj.startTime = date;
+    gameObj.league = league;
 
     return gameObj;
 }
@@ -4348,45 +2666,24 @@ function parseEvent(
 // LIVE GAME DETAILS
 // =========================================================
 
-function gameDetails(
-    sport,
-    situation
-) {
-    if (
-        situation == undefined ||
-        situation == null
-    ) {
+function gameDetails(sport, situation) {
+    if (situation == undefined || situation == null) {
         return "";
     }
 
-
     switch (sport) {
-
         case models.sports.NFL:
-            return (
-                situation
-                    .downDistanceText ||
-                ""
-            );
-
+            return situation.downDistanceText || "";
 
         case models.sports.MLB:
-
             if (
-                situation.balls ===
-                    undefined ||
-                situation.strikes ===
-                    undefined
+                situation.balls === undefined ||
+                situation.strikes === undefined
             ) {
-                return (
-                    situation.outs !==
-                        undefined
-                        ? situation.outs +
-                            " outs"
-                        : ""
-                );
+                return situation.outs !== undefined
+                    ? situation.outs + " outs"
+                    : "";
             }
-
 
             return (
                 situation.balls +
@@ -4396,7 +2693,6 @@ function gameDetails(
                 situation.outs +
                 " outs"
             );
-
 
         default:
             return "";
@@ -4408,26 +2704,12 @@ function gameDetails(
 // GAME POSSESSION
 // =========================================================
 
-function gamePossession(
-    sport,
-    situation,
-    team1,
-    team2
-) {
-    if (
-        situation ==
-            undefined ||
-        situation ==
-            null
-    ) {
-        return (
-            models.possession.NONE
-        );
+function gamePossession(sport, situation, team1, team2) {
+    if (situation == undefined || situation == null) {
+        return models.possession.NONE;
     }
 
-
     switch (sport) {
-
         case models.sports.NFL:
             return possessionByTeam(
                 situation.possession,
@@ -4435,92 +2717,48 @@ function gamePossession(
                 team2
             );
 
-
         case models.sports.MLB:
-
             if (
                 situation.batter &&
                 situation.batter.athlete &&
-                situation.batter
-                    .athlete
-                    .team
+                situation.batter.athlete.team
             ) {
                 return possessionByTeam(
-                    situation
-                        .batter
-                        .athlete
-                        .team
-                        .id,
-
+                    situation.batter.athlete.team.id,
                     team1,
                     team2
                 );
-
-
             } else if (
                 situation.dueUp &&
-                situation.dueUp.length >
-                    0 &&
-                situation.dueUp[0]
-                    .athlete &&
-                situation.dueUp[0]
-                    .athlete
-                    .team
+                situation.dueUp.length > 0 &&
+                situation.dueUp[0].athlete &&
+                situation.dueUp[0].athlete.team
             ) {
                 return possessionByTeam(
-                    situation
-                        .dueUp[0]
-                        .athlete
-                        .team
-                        .id,
-
+                    situation.dueUp[0].athlete.team.id,
                     team1,
                     team2
                 );
             }
 
-
-            return (
-                models.possession.NONE
-            );
-
+            return models.possession.NONE;
 
         default:
-            return (
-                models.possession.NONE
-            );
+            return models.possession.NONE;
     }
 }
 
 
-function possessionByTeam(
-    possessionId,
-    team1,
-    team2
-) {
-    if (
-        possessionId ==
-        team1.id
-    ) {
-        return (
-            models.possession.TEAM1
-        );
+function possessionByTeam(possessionId, team1, team2) {
+    if (possessionId == team1.id) {
+        return models.possession.TEAM1;
     }
 
-
-    if (
-        possessionId ==
-        team2.id
-    ) {
-        return (
-            models.possession.TEAM2
-        );
+    if (possessionId == team2.id) {
+        return models.possession.TEAM2;
     }
 
-
-    return (
-        models.possession.NONE
-    );
+    return models.possession.NONE;
 }
 
 
@@ -4528,57 +2766,24 @@ function possessionByTeam(
 // TIMELINE ICONS
 // =========================================================
 
-function getTimelineIcon(
-    sport
-) {
+function getTimelineIcon(sport) {
     switch (sport) {
-
         case models.sports.NFL:
-            return (
-                "system://images/AMERICAN_FOOTBALL"
-            );
-
-
+            return "system://images/AMERICAN_FOOTBALL";
         case models.sports.MLB:
-            return (
-                "system://images/TIMELINE_BASEBALL"
-            );
-
-
+            return "system://images/TIMELINE_BASEBALL";
         case models.sports.NHL:
-            return (
-                "system://images/HOCKEY_GAME"
-            );
-
-
+            return "system://images/HOCKEY_GAME";
         case models.sports.NBA:
-            return (
-                "system://images/BASKETBALL"
-            );
-
-
+            return "system://images/BASKETBALL";
         case models.sports.MLS:
-            return (
-                "system://images/SOCCER_GAME"
-            );
-
-
+            return "system://images/SOCCER_GAME";
         case models.sports.CRICKET:
-            return (
-                "system://images/CRICKET_GAME"
-            );
-
-
+            return "system://images/CRICKET_GAME";
         case models.sports.TENNIS:
-            return (
-                "system://images/TIMELINE_SPORTS"
-            );
-
-
+            return "system://images/TIMELINE_SPORTS";
         default:
-            return (
-                "system://images/TIMELINE_SPORTS"
-            );
+            return "system://images/TIMELINE_SPORTS";
     }
 }
 
@@ -4587,51 +2792,31 @@ function getTimelineIcon(
 // LOCAL TIMELINE PIN INSERT
 // =========================================================
 
-function insertUserPin(
-    pin
-) {
+function insertUserPin(pin) {
     if (
-        typeof Pebble !==
-            'undefined' &&
-        typeof Pebble
-            .insertTimelinePin ===
-            'function'
+        typeof Pebble !== 'undefined' &&
+        typeof Pebble.insertTimelinePin === 'function'
     ) {
         try {
             /*
              * RePebble's local insert API is fire-and-forget.
              */
-            Pebble.insertTimelinePin(
-                pin
-            );
-
+            Pebble.insertTimelinePin(pin);
 
             console.log(
-                "Local pin successfully pushed to OS: " +
-                pin.id
+                "Local pin successfully pushed to OS: " + pin.id
             );
-
 
             return true;
 
-
         } catch (e) {
-            console.log(
-                "Error inserting local pin: " +
-                e
-            );
-
-
+            console.log("Error inserting local pin: " + e);
             return false;
         }
-
-
     } else {
         console.log(
             "Local insertTimelinePin not available on this platform."
         );
-
-
         return false;
     }
 }
@@ -4641,302 +2826,144 @@ function insertUserPin(
 // TIMELINE FAVORITES SYNC
 // =========================================================
 
-function updateTimelinePins(
-    games
-) {
+function updateTimelinePins(games) {
     /*
      * Only one Timeline sync loop should exist at a time.
      */
-    if (
-        s_timeline_sync_timer
-    ) {
-        clearInterval(
-            s_timeline_sync_timer
-        );
-
-
-        s_timeline_sync_timer =
-            null;
+    if (s_timeline_sync_timer) {
+        clearInterval(s_timeline_sync_timer);
+        s_timeline_sync_timer = null;
     }
 
+    const now = new Date();
+    const future72h = new Date(
+        now.getTime() + 72 * 60 * 60 * 1000
+    );
+    const past12h = new Date(
+        now.getTime() - 12 * 60 * 60 * 1000
+    );
 
-    const now =
-        new Date();
-
-
-    const future72h =
-        new Date(
-            now.getTime() +
-            72 *
-            60 *
-            60 *
-            1000
-        );
-
-
-    const past12h =
-        new Date(
-            now.getTime() -
-            12 *
-            60 *
-            60 *
-            1000
-        );
-
-
-    let pushedPins =
-        {};
-
+    let pushedPins = {};
 
     try {
-        let parsed =
-            JSON.parse(
-                localStorage
-                    .getItem(
-                        "pushed_pins_v4"
-                    )
-            );
-
+        let parsed = JSON.parse(
+            localStorage.getItem("pushed_pins_v4")
+        );
 
         if (
             parsed &&
-            typeof parsed ===
-                'object' &&
-            !Array.isArray(
-                parsed
-            )
+            typeof parsed === 'object' &&
+            !Array.isArray(parsed)
         ) {
-            pushedPins =
-                parsed;
+            pushedPins = parsed;
         }
-
-
     } catch (e) {}
 
+    let pinsToPush = [];
 
-    let pinsToPush =
-        [];
-
-
-    games.forEach(
-        game => {
-
+    games.forEach(game => {
+        if (
+            game.startTime &&
+            !isNaN(game.startTime.getTime())
+        ) {
             if (
-                game.startTime &&
-                !isNaN(
-                    game.startTime
-                        .getTime()
-                )
+                game.startTime > past12h &&
+                game.startTime < future72h
             ) {
-                if (
-                    game.startTime >
-                        past12h &&
-                    game.startTime <
-                        future72h
-                ) {
-                    const pinId =
-                        "game-" +
-                        game.sport +
-                        "-" +
-                        game.id;
+                const pinId =
+                    "game-" + game.sport + "-" + game.id;
 
+                const localTimeISO =
+                    game.startTime.toISOString();
 
-                    const localTimeISO =
-                        game.startTime
-                            .toISOString();
-
-
-                    if (
-                        pushedPins[
-                            pinId
-                        ] ===
-                        localTimeISO
-                    ) {
-                        return;
-                    }
-
-
-                    let bodyText =
-                        "Starts at: " +
-                        game.time +
-                        " (" +
-                        game.details +
-                        ")";
-
-
-                    if (
-                        game.broadcast
-                    ) {
-                        bodyText +=
-                            "\nWatch on: " +
-                            game.broadcast;
-                    }
-
-
-                    var pin = {
-                        "id":
-                            pinId,
-
-                        "time":
-                            localTimeISO,
-
-                        "duration":
-                            180,
-
-                        "layout": {
-                            "type":
-                                "genericPin",
-
-                            "title":
-                                game.team1.name +
-                                " vs " +
-                                game.team2.name,
-
-                            "subtitle":
-                                "Get ready for the game!",
-
-                            "body":
-                                bodyText,
-
-                            "tinyIcon":
-                                getTimelineIcon(
-                                    game.sport
-                                ),
-
-                            "largeIcon":
-                                getTimelineIcon(
-                                    game.sport
-                                )
-                        }
-                    };
-
-
-                    pinsToPush.push({
-                        pin:
-                            pin,
-
-                        iso:
-                            localTimeISO
-                    });
+                if (pushedPins[pinId] === localTimeISO) {
+                    return;
                 }
+
+                let bodyText =
+                    "Starts at: " +
+                    game.time +
+                    " (" +
+                    game.details +
+                    ")";
+
+                if (game.broadcast) {
+                    bodyText += "\nWatch on: " + game.broadcast;
+                }
+
+                var pin = {
+                    "id": pinId,
+                    "time": localTimeISO,
+                    "duration": 180,
+                    "layout": {
+                        "type": "genericPin",
+                        "title":
+                            game.team1.name +
+                            " vs " +
+                            game.team2.name,
+                        "subtitle": "Get ready for the game!",
+                        "body": bodyText,
+                        "tinyIcon": getTimelineIcon(game.sport),
+                        "largeIcon": getTimelineIcon(game.sport)
+                    }
+                };
+
+                pinsToPush.push({
+                    pin: pin,
+                    iso: localTimeISO
+                });
             }
         }
-    );
+    });
 
-
-    if (
-        pinsToPush.length ===
-        0
-    ) {
+    if (pinsToPush.length === 0) {
         return;
     }
 
-
-    let index =
-        0;
-
+    let index = 0;
 
     /*
      * Space local Timeline inserts one second apart.
      */
-    s_timeline_sync_timer =
-        setInterval(
-            function() {
+    s_timeline_sync_timer = setInterval(function() {
+        if (index >= pinsToPush.length) {
+            clearInterval(s_timeline_sync_timer);
+            s_timeline_sync_timer = null;
 
-                if (
-                    index >=
-                    pinsToPush.length
-                ) {
-                    clearInterval(
-                        s_timeline_sync_timer
-                    );
+            /*
+             * Bound localStorage growth.
+             */
+            let keys = Object.keys(pushedPins);
 
+            if (keys.length > 100) {
+                let newPushedPins = {};
 
-                    s_timeline_sync_timer =
-                        null;
+                keys.slice(-100).forEach(key => {
+                    newPushedPins[key] = pushedPins[key];
+                });
 
+                pushedPins = newPushedPins;
+            }
 
-                    /*
-                     * Bound localStorage growth.
-                     */
-                    let keys =
-                        Object.keys(
-                            pushedPins
-                        );
+            try {
+                localStorage.setItem(
+                    "pushed_pins_v4",
+                    JSON.stringify(pushedPins)
+                );
+            } catch (e) {}
 
+            console.log("Timeline background sync complete.");
+            return;
+        }
 
-                    if (
-                        keys.length >
-                        100
-                    ) {
-                        let newPushedPins =
-                            {};
+        let item = pinsToPush[index];
 
+        if (insertUserPin(item.pin)) {
+            pushedPins[item.pin.id] = item.iso;
+        }
 
-                        keys
-                            .slice(-100)
-                            .forEach(
-                                key => {
-                                    newPushedPins[
-                                        key
-                                    ] =
-                                        pushedPins[
-                                            key
-                                        ];
-                                }
-                            );
-
-
-                        pushedPins =
-                            newPushedPins;
-                    }
-
-
-                    try {
-                        localStorage
-                            .setItem(
-                                "pushed_pins_v4",
-                                JSON.stringify(
-                                    pushedPins
-                                )
-                            );
-
-
-                    } catch (e) {}
-
-
-                    console.log(
-                        "Timeline background sync complete."
-                    );
-
-
-                    return;
-                }
-
-
-                let item =
-                    pinsToPush[
-                        index
-                    ];
-
-
-                if (
-                    insertUserPin(
-                        item.pin
-                    )
-                ) {
-                    pushedPins[
-                        item.pin.id
-                    ] =
-                        item.iso;
-                }
-
-
-                index++;
-            },
-
-            1000
-        );
+        index++;
+    }, 1000);
 }
 
 
@@ -4944,72 +2971,54 @@ function updateTimelinePins(
 // WATCH BREAKDOWN REQUEST LISTENER
 // =========================================================
 
-Pebble.addEventListener(
-    'appmessage',
+Pebble.addEventListener('appmessage', function(e) {
+    let dict = e.payload;
 
-    function(e) {
+    if (dict.REQUEST_BREAKDOWN) {
+        let sport = dict.REQUEST_BREAKDOWN;
 
-        let dict =
-            e.payload;
+        /*
+         * Prefer SEND_GAME_ID when provided so breakdown requests do not
+         * collide with UPDATE_GAME_ID in the top-level JS dispatcher, while
+         * remaining backward-compatible with UPDATE_GAME_ID.
+         */
+        let gameId =
+            dict.SEND_GAME_ID != null
+                ? dict.SEND_GAME_ID
+                : dict.UPDATE_GAME_ID;
 
+        let requestId = dict.REQUEST_ID;
+        let leagueName = dict.SEND_GAME_LEAGUE || "";
 
-        if (
-            dict.REQUEST_BREAKDOWN
-        ) {
-            let sport =
-                dict.REQUEST_BREAKDOWN;
-
-            let gameId =
-                dict.UPDATE_GAME_ID;
-
-            let requestId =
-                dict.REQUEST_ID;
-
-            let leagueName =
-                dict.SEND_GAME_LEAGUE ||
-                "";
-
-
-            getGameBreakdown(
-                sport,
-                leagueName,
-                gameId,
-                requestId,
-
-                function(
-                    responseDict
-                ) {
-                    Pebble.sendAppMessage(
-                        responseDict,
-
-                        function() {
-                            console.log(
-                                "[BREAKDOWN] Sent successfully to watch."
-                            );
-                        },
-
-                        function(err) {
-                            console.log(
-                                "[BREAKDOWN] Failed to send to watch: " +
-                                JSON.stringify(
-                                    err
-                                )
-                            );
-                        }
-                    );
-                }
-            );
-        }
+        getGameBreakdown(
+            sport,
+            leagueName,
+            gameId,
+            requestId,
+            function(responseDict) {
+                Pebble.sendAppMessage(
+                    responseDict,
+                    function() {
+                        console.log(
+                            "[BREAKDOWN] Sent successfully to watch."
+                        );
+                    },
+                    function(err) {
+                        console.log(
+                            "[BREAKDOWN] Failed to send to watch: " +
+                            JSON.stringify(err)
+                        );
+                    }
+                );
+            }
+        );
     }
-);
+});
 
 
 // =========================================================
 // EXPORTS
 // =========================================================
 
-module.exports.getGames =
-    getGames;
-
-module.exports.getGame =
-    getGame;
+module.exports.getGames = getGames;
+module.exports.getGame = getGame;

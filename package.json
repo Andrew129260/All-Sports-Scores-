@@ -225,14 +225,6 @@
                     "type": "bitmap"
                 },
                 {
-                    "file": "images/app icon 25.png",
-                    "menuIcon": true,
-                    "name": "Appicon25",
-                    "storageFormat": "pbi",
-                    "targetPlatforms": null,
-                    "type": "bitmap"
-                },
-                {
                     "file": "images/mma 16.png",
                     "name": "IMAGE_SPORT_MMA16",
                     "storageFormat": "pbi",
@@ -259,6 +251,14 @@
                     "storageFormat": "pbi",
                     "targetPlatforms": null,
                     "type": "bitmap"
+                },
+                {
+                    "file": "images/app icon 25.png",
+                    "menuIcon": true,
+                    "name": "Appicon25",
+                    "storageFormat": "pbi",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
                 }
             ]
         },
@@ -277,5 +277,5 @@
             "watchface": false
         }
     },
-    "version": "10.0.0"
+    "version": "10.0.1"
 }

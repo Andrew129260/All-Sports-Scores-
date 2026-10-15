@@ -48,8 +48,11 @@ static bool s_ui_built = false;
 static char s_date_buffer[32];
 static char s_broad_buffer[32];
 
-static Window *s_pending_result_window = NULL;
 static AppTimer *s_result_push_timer = NULL;
+static int s_pending_fav_game_id = 0;
+static bool s_favorite_request_pending = false;
+static MenuAction s_pending_fav_action = ACTION_TEAM_1;
+static FavoriteChangeResult s_pending_fav_result = FavoriteChangeFailed;
 
 static int16_t s_touch_start_x = 0;
 static int16_t s_touch_start_y = 0;
@@ -81,6 +84,10 @@ static void append_round_footer(
 }
 #endif
 
+#else
+
+static AppTimer *s_action_menu_timer = NULL;
+
 #endif
 
 // =========================================================
@@ -89,21 +96,6 @@ static void append_round_footer(
 
 static void build_ui(Window *window);
 static void tear_down_ui(void);
-
-// =========================================================
-// FAVORITES CALLBACK
-// =========================================================
-
-static void silent_favorite_change_callback(
-    int team_id,
-    FavoriteChangeResult result
-) {
-    APP_LOG(
-        APP_LOG_LEVEL_DEBUG,
-        "Favorite sync result = %d",
-        (int)result
-    );
-}
 
 // =========================================================
 // REFRESH CALLBACK
@@ -154,7 +146,7 @@ static void build_ui(Window *window) {
     }
 
     Layer *window_layer = window_get_root_layer(window);
-    GRect bounds = layer_get_frame(window_layer);
+    GRect bounds = layer_get_bounds(window_layer);
 
     const char *time_str =
         g_game->time ? g_game->time : "";
@@ -216,7 +208,7 @@ static void build_ui(Window *window) {
 
 #if defined(PBL_PLATFORM_EMERY) || defined(PBL_PLATFORM_GABBRO)
 
-    GRect full_bounds = layer_get_frame(window_layer);
+    GRect full_bounds = layer_get_bounds(window_layer);
 
     const char *broadcast_str =
         (g_game->broadcast &&
@@ -389,7 +381,7 @@ static void build_ui(Window *window) {
 
     int line_y = full_bounds.size.h - 60;
 
-    int side_w = 68;
+    int side_w = 64;
     int margin = 2;
 
     int center_w =
@@ -450,19 +442,20 @@ static void build_ui(Window *window) {
     }
 
     // Center: game time
-
+    // Positioned at line_y + 18 so GOTHIC_18_BOLD has clean breathing room
+    // below "GAME INFO" without any risk of wrapping.
     s_time = text_layer_create(
         GRect(
             margin + side_w,
-            line_y + 16,
+            line_y + 18,
             center_w,
-            48
+            42
         )
     );
 
     if (s_time) {
         GFont t_font =
-            strlen(time_str) >= 9
+            strlen(time_str) >= 11
                 ? fonts_get_system_font(
                     FONT_KEY_GOTHIC_14_BOLD)
                 : fonts_get_system_font(
@@ -503,7 +496,7 @@ static void build_ui(Window *window) {
                 FONT_KEY_GOTHIC_18_BOLD);
 
     s_details = text_layer_create(
-        GRect(2, line_y + 12, side_w - 2, 48)
+        GRect(2, line_y + 14, side_w - 2, 46)
     );
 
     if (s_details) {
@@ -553,9 +546,9 @@ static void build_ui(Window *window) {
     s_broadcast = text_layer_create(
         GRect(
             full_bounds.size.w - side_w,
-            line_y + 12,
+            line_y + 14,
             side_w - 2,
-            48
+            46
         )
     );
 
@@ -911,7 +904,13 @@ static void select_long_click_handler(
 // =========================================================
 
 static void deferred_action_menu(void *data) {
-    if (!g_game) return;
+    s_action_menu_timer = NULL;
+
+    if (!g_game || !scoreWindow) return;
+
+    if (window_stack_get_top_window() != scoreWindow) {
+        return;
+    }
 
 #if defined(PBL_PLATFORM_APLITE)
     tear_down_ui();
@@ -924,7 +923,12 @@ static void select_click_handler(
     ClickRecognizerRef recognizer,
     void *context
 ) {
-    app_timer_register(
+    if (s_action_menu_timer) {
+        app_timer_cancel(s_action_menu_timer);
+        s_action_menu_timer = NULL;
+    }
+
+    s_action_menu_timer = app_timer_register(
         50,
         deferred_action_menu,
         NULL
@@ -962,71 +966,107 @@ static void click_config_provider(void *context) {
 static void push_result_window_callback(void *data) {
     s_result_push_timer = NULL;
 
-    Window *pending = s_pending_result_window;
-    s_pending_result_window = NULL;
-
-    if (!pending) return;
-
-    // Don't push a result after the score screen was closed.
-    if (!scoreWindow ||
+    // Don't create or push a result after the score screen was closed
+    // or if the user navigated to a different game.
+    if (!scoreWindow || !g_game ||
+        g_game->id != s_pending_fav_game_id ||
         window_stack_get_top_window() != scoreWindow) {
-
-        window_destroy(pending);
         return;
     }
 
-    window_stack_push(pending, true);
+    Window *result_window =
+        result_window_create_favorite(
+            g_game,
+            s_pending_fav_action,
+            s_pending_fav_result
+        );
+
+    if (result_window) {
+        window_stack_push(result_window, true);
+    }
+}
+
+static void favorite_change_callback(
+    int team_id,
+    FavoriteChangeResult result
+) {
+    s_favorite_request_pending = false;
+
+    APP_LOG(
+        APP_LOG_LEVEL_DEBUG,
+        "Favorite sync result = %d",
+        (int)result
+    );
+
+    if (!scoreWindow || !g_game) {
+        return;
+    }
+
+    // Response belongs to a game that is no longer being viewed.
+    if (g_game->id != s_pending_fav_game_id) {
+        return;
+    }
+
+    if (team_id != g_game->team1.id &&
+        team_id != g_game->team2.id) {
+        return;
+    }
+
+    if (s_score) {
+        layer_mark_dirty(s_score);
+    }
+
+    if (window_stack_get_top_window() != scoreWindow) {
+        return;
+    }
+
+    s_pending_fav_action =
+        (team_id == g_game->team1.id)
+            ? ACTION_TEAM_1
+            : ACTION_TEAM_2;
+
+    s_pending_fav_result = result;
+
+    if (s_result_push_timer) {
+        app_timer_cancel(s_result_push_timer);
+        s_result_push_timer = NULL;
+    }
+
+    s_result_push_timer = app_timer_register(
+        50,
+        push_result_window_callback,
+        NULL
+    );
 }
 
 static void open_favorite_result(
     int team_index
 ) {
     if (!g_game || !s_score ||
-        s_pending_result_window) {
+        s_result_push_timer ||
+        s_favorite_request_pending) {
         return;
     }
 
     bool is_team1 = (team_index == 1);
 
-    bool *favorite = is_team1
-        ? &g_game->team1.favorite
-        : &g_game->team2.favorite;
-
     int team_id = is_team1
         ? g_game->team1.id
         : g_game->team2.id;
 
-    *favorite = !*favorite;
+    s_pending_fav_game_id = g_game->id;
+    s_pending_fav_action =
+        is_team1 ? ACTION_TEAM_1 : ACTION_TEAM_2;
+
+    s_favorite_request_pending = true;
+
+    vibes_short_pulse();
 
     handle_request_change_favorite(
         g_game,
         team_id,
-        silent_favorite_change_callback
+        favorite_change_callback
     );
-
-    s_pending_result_window =
-        result_window_create_favorite(
-            g_game,
-            is_team1 ? ACTION_TEAM_1 : ACTION_TEAM_2,
-            *favorite ? 1 : 0
-        );
-
-    layer_mark_dirty(s_score);
-    vibes_short_pulse();
-
-    if (s_pending_result_window) {
-        s_result_push_timer = app_timer_register(
-            50,
-            push_result_window_callback,
-            NULL
-        );
-
-        if (!s_result_push_timer) {
-            Window *pending = s_pending_result_window;
-            s_pending_result_window = NULL;
-            window_destroy(pending);
-        }
-    }
 }
 
 static void score_touch_handler(
@@ -1120,10 +1160,10 @@ static void window_unload(Window *window) {
         app_timer_cancel(s_result_push_timer);
         s_result_push_timer = NULL;
     }
-
-    if (s_pending_result_window) {
-        window_destroy(s_pending_result_window);
-        s_pending_result_window = NULL;
+#else
+    if (s_action_menu_timer) {
+        app_timer_cancel(s_action_menu_timer);
+        s_action_menu_timer = NULL;
     }
 #endif
 
@@ -1136,6 +1176,11 @@ static void window_disappear(Window *window) {
     // A late ESPN response must not open a different game.
     handle_cancel_breakdown_request();
 
+    if (s_result_push_timer) {
+        app_timer_cancel(s_result_push_timer);
+        s_result_push_timer = NULL;
+    }
+
     if (s_touch_subscribed) {
         touch_service_unsubscribe();
         s_touch_subscribed = false;
@@ -1143,6 +1188,11 @@ static void window_disappear(Window *window) {
 
     app_touch_navigation_enable(true);
 
+#else
+    if (s_action_menu_timer) {
+        app_timer_cancel(s_action_menu_timer);
+        s_action_menu_timer = NULL;
+    }
 #endif
 }
 
@@ -1174,6 +1224,13 @@ void show_score_screen(Game *game) {
     if (!game) return;
 
     handle_cancel_breakdown_request();
+
+#if defined(PBL_PLATFORM_EMERY) || defined(PBL_PLATFORM_GABBRO)
+    if (s_result_push_timer) {
+        app_timer_cancel(s_result_push_timer);
+        s_result_push_timer = NULL;
+    }
+#endif
 
     bool already_loaded =
         scoreWindow && s_ui_built;

@@ -14,8 +14,12 @@ static const GPathInfo s_star_path_info = {
 
 static void draw_star(GContext *ctx, GPoint center, bool filled) {
     GPath *star_path = gpath_create(&s_star_path_info);
+    if (!star_path) {
+        return;
+    }
+
     gpath_move_to(star_path, center);
-    
+
     if (filled) {
         graphics_context_set_fill_color(ctx, PBL_IF_COLOR_ELSE(GColorChromeYellow, GColorBlack));
         gpath_draw_filled(ctx, star_path);
@@ -28,8 +32,10 @@ static void draw_star(GContext *ctx, GPoint center, bool filled) {
 #endif
 
 static void schedule_update_proc(Layer *layer, GContext *ctx) {
-    Game *game = *(Game **)layer_get_data(layer);
-    if (game == NULL) return;
+    Game **game_ptr = (Game **)layer_get_data(layer);
+    if (!game_ptr || !*game_ptr) return;
+
+    Game *game = *game_ptr;
 
     GRect layer_bounds = layer_get_bounds(layer);
     int half_w = layer_bounds.size.w / 2;
@@ -40,7 +46,7 @@ static void schedule_update_proc(Layer *layer, GContext *ctx) {
     // VISUAL FIX: Shorten center line to perfectly match the live score layout
     int sep_h = layer_bounds.size.h;
     #if defined(PBL_PLATFORM_EMERY) || defined(PBL_PLATFORM_GABBRO)
-        sep_h = 100; 
+        sep_h = 100;
     #endif
     GRect separator_bounds = GRect(half_w - 1, 0, 2, sep_h);
     graphics_fill_rect(ctx, separator_bounds, 0, GCornerNone);
@@ -54,10 +60,22 @@ static void schedule_update_proc(Layer *layer, GContext *ctx) {
     #if defined(PBL_PLATFORM_EMERY) || defined(PBL_PLATFORM_GABBRO)
         font_team = fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD);
         font_rec = fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD);
-        draw_star(ctx, GPoint(half_w / 2, 12), game->team1.favorite);
-        draw_star(ctx, GPoint(half_w + (half_w / 2), 12), game->team2.favorite);
+
+        #if defined(PBL_PLATFORM_GABBRO)
+            draw_star(ctx, GPoint(half_w / 2 + 10, 12), game->team1.favorite);
+            draw_star(ctx, GPoint(half_w + (half_w / 2) - 10, 12), game->team2.favorite);
+        #else
+            draw_star(ctx, GPoint(half_w / 2, 12), game->team1.favorite);
+            draw_star(ctx, GPoint(half_w + (half_w / 2), 12), game->team2.favorite);
+        #endif
+
         team_y = 16;
         rec_y = 48;
+    #endif
+
+    int side_pad = 0;
+    #if defined(PBL_PLATFORM_GABBRO)
+        side_pad = 20;
     #endif
 
     const char *t1_name = game->team1.name ? game->team1.name : "";
@@ -65,16 +83,16 @@ static void schedule_update_proc(Layer *layer, GContext *ctx) {
     const char *t1_rec = game->team1.record ? game->team1.record : "";
     const char *t2_rec = game->team2.record ? game->team2.record : "";
 
-    graphics_draw_text(ctx, t1_name, font_team, GRect(0, team_y, half_w - 2, 32), GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
-    graphics_draw_text(ctx, t2_name, font_team, GRect(half_w + 2, team_y, half_w - 2, 32), GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
+    graphics_draw_text(ctx, t1_name, font_team, GRect(side_pad, team_y, half_w - side_pad - 2, 32), GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
+    graphics_draw_text(ctx, t2_name, font_team, GRect(half_w + 2, team_y, half_w - side_pad - 2, 32), GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
 
-    graphics_draw_text(ctx, t1_rec, font_rec, GRect(0, rec_y, half_w - 2, 28), GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
-    graphics_draw_text(ctx, t2_rec, font_rec, GRect(half_w + 2, rec_y, half_w - 2, 28), GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
+    graphics_draw_text(ctx, t1_rec, font_rec, GRect(side_pad, rec_y, half_w - side_pad - 2, 28), GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
+    graphics_draw_text(ctx, t2_rec, font_rec, GRect(half_w + 2, rec_y, half_w - side_pad - 2, 28), GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
 }
 
 Layer *schedule_layer_create(GRect bounds, Game *game) {
-    Layer *schedule; 
-    
+    if (!game) return NULL;
+
     // LAYER HEIGHT FIX: Ensure the layer is tall enough on Emery/Gabbro!
     #if defined(PBL_PLATFORM_EMERY) || defined(PBL_PLATFORM_GABBRO)
         bounds.size.h = 130;
@@ -87,7 +105,9 @@ Layer *schedule_layer_create(GRect bounds, Game *game) {
         bounds.origin.x += 16;
     #endif
 
-    schedule = layer_create_with_data(bounds, sizeof(Game*));
+    Layer *schedule = layer_create_with_data(bounds, sizeof(Game *));
+    if (!schedule) return NULL;
+
     Game **layer_data = (Game **)layer_get_data(schedule);
     *layer_data = game;
     layer_set_update_proc(schedule, schedule_update_proc);

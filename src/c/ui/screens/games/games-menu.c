@@ -25,11 +25,6 @@ static ErrorLayer *s_error_layer;
 static TextLayer *s_empty_title_layer;
 static TextLayer *s_empty_sub_layer;
 
-#if defined(PBL_ROUND)
-static ContentIndicator *s_content_indicator;
-static Layer *s_indicator_layer;
-#endif
-
 static int game_count;
 static Game *games;
 static Sport s_sport;
@@ -100,17 +95,6 @@ static void on_games_loaded(int loaded_game_count, Game *loaded_games) {
             layer_set_hidden(menu_layer_get_layer(s_menu_layer), false);
             menu_layer_reload_data(s_menu_layer);
         }
-
-#if defined(PBL_ROUND)
-        if (s_content_indicator) {
-            content_indicator_set_content_available(
-                s_content_indicator,
-                ContentIndicatorDirectionDown,
-                game_count > 2
-            );
-        }
-#endif
-
     } else if (game_count == 0) {
         on_games_error(NoGames);
     }
@@ -129,13 +113,14 @@ static void on_games_error(AppError error) {
     Layer *window_layer = window_get_root_layer(gamesWindow);
     if (!window_layer) return;
 
-    GRect bounds = layer_get_frame(window_layer);
+    // Use layer_get_bounds so origin.x is always 0 even during push animations!
+    GRect bounds = layer_get_bounds(window_layer);
 
     if (error == NoGames && s_sport == Favorites) {
         // Build the rich layout natively ONLY for the Favorites instructions
         GRect title_bounds = GRect(10, bounds.size.h / 2 - 30, bounds.size.w - 20, 28);
         s_empty_title_layer = text_layer_create(title_bounds);
-        
+
         if (s_empty_title_layer) {
             text_layer_set_font(s_empty_title_layer, fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD));
             text_layer_set_text_alignment(s_empty_title_layer, GTextAlignmentCenter);
@@ -154,7 +139,7 @@ static void on_games_error(AppError error) {
             text_layer_set_text_alignment(s_empty_sub_layer, GTextAlignmentCenter);
             text_layer_set_background_color(s_empty_sub_layer, GColorClear);
             text_layer_set_text_color(s_empty_sub_layer, PBL_IF_COLOR_ELSE(GColorDarkGray, GColorBlack));
-            
+
             #if defined(PBL_PLATFORM_EMERY) || defined(PBL_PLATFORM_GABBRO)
             text_layer_set_text(s_empty_sub_layer, "Add teams by tapping the star to follow and see active games");
             #else
@@ -165,11 +150,10 @@ static void on_games_error(AppError error) {
         }
     } else {
         // True network errors AND standard league "NoGames" use the traditional ErrorLayer
-        // This restores the beautiful sport icon + "Likely off-season" presentation!
         GRect error_layer_bounds = GRect(
-            bounds.origin.x + PBL_IF_ROUND_ELSE(32, 8),
-            bounds.origin.y + bounds.size.h / 2 - PBL_IF_ROUND_ELSE(24, 36),
-            bounds.size.w - PBL_IF_ROUND_ELSE(64, 16),
+            PBL_IF_ROUND_ELSE(24, 8),
+            bounds.size.h / 2 - PBL_IF_ROUND_ELSE(24, 36),
+            bounds.size.w - PBL_IF_ROUND_ELSE(48, 16),
             75
         );
 
@@ -211,7 +195,7 @@ static void refresh_games(Sport sport) {
         return;
     }
 
-    GRect bounds = layer_get_frame(window_layer);
+    GRect bounds = layer_get_bounds(window_layer);
     GRect loading_section_bounds = bounds;
 
     loading_section_bounds.origin.y += bounds.size.h / 2 - 16;
@@ -406,15 +390,7 @@ static void menu_select_callback(MenuLayer *menu_layer, MenuIndex *cell_index, v
 }
 
 static void menu_selection_changed_callback(MenuLayer *menu_layer, MenuIndex new_index, MenuIndex old_index, void *callback_context) {
-#if defined(PBL_ROUND)
-    if (s_content_indicator) {
-        content_indicator_set_content_available(
-            s_content_indicator,
-            ContentIndicatorDirectionDown,
-            new_index.row < game_count - 2
-        );
-    }
-#endif
+    // Scroll position tracked automatically by MenuLayer
 }
 
 
@@ -428,7 +404,7 @@ static void build_menu_layer(Window *window) {
     Layer *window_layer = window_get_root_layer(window);
     if (!window_layer) return;
 
-    GRect menu_bounds = layer_get_frame(window_layer);
+    GRect menu_bounds = layer_get_bounds(window_layer);
 
 #if defined(PBL_ROUND)
     menu_bounds.origin.y += STATUS_BAR_LAYER_HEIGHT;
@@ -491,7 +467,7 @@ static void initialise_ui(Window *window) {
     }
 
 #if !defined(PBL_ROUND)
-    GRect bounds = layer_get_frame(window_layer);
+    GRect bounds = layer_get_bounds(window_layer);
     s_header_data.title = sport_get_name(s_sport);
     s_header_data.info = NULL;
     s_header_data.under_status_bar = true;
@@ -536,17 +512,6 @@ static void destroy_ui(Window *window) {
     if (s_header) {
         layer_destroy((Layer *)s_header);
         s_header = NULL;
-    }
-#endif
-
-#if defined(PBL_ROUND)
-    if (s_indicator_layer) {
-        layer_destroy(s_indicator_layer);
-        s_indicator_layer = NULL;
-    }
-    if (s_content_indicator) {
-        content_indicator_destroy(s_content_indicator);
-        s_content_indicator = NULL;
     }
 #endif
 }
