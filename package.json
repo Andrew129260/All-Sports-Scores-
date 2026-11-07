@@ -7,8 +7,12 @@
     ],
     "name": "pebble-sports",
     "pebble": {
+        "capabilities": [
+            "location"
+        ],
         "displayName": "All Sports Scores",
         "enableMultiJS": true,
+        "manifestVersion": 2,
         "messageKeys": [
             "READY",
             "REQUEST_ID",
@@ -272,10 +276,15 @@
             "gabbro",
             "flint"
         ],
+        "usesPermissions": [
+            "Internet",
+            "Location",
+            "Timeline"
+        ],
         "uuid": "54dd282f-3cb0-4e13-9cb4-60394f40e674",
         "watchapp": {
             "watchface": false
         }
     },
-    "version": "10.0.1"
+    "version": "10.0.2"
 }

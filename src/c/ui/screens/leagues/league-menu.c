@@ -15,30 +15,80 @@ static int s_num_leagues = 0;
 static HeaderData s_header_data;
 static MenuIndex s_saved_scroll_pos = {0, 0};
 
-static void load_league_folders() {
+static void load_league_folders(void) {
     switch (s_current_sport) {
         case SportNFL:
-            s_leagues[0] = "NFL"; s_leagues[1] = "College Football"; s_leagues[2] = "UFL"; s_leagues[3] = "CFL"; s_num_leagues = 4; break;
+            s_leagues[0] = "NFL";
+            s_leagues[1] = "College Football";
+            s_leagues[2] = "UFL";
+            s_leagues[3] = "CFL";
+            s_num_leagues = 4;
+            break;
         case SportMLB:
-            s_leagues[0] = "MLB"; s_leagues[1] = "College Baseball"; s_leagues[2] = "World Baseball Classic"; s_num_leagues = 3; break;
+            s_leagues[0] = "MLB";
+            s_leagues[1] = "College Baseball";
+            s_leagues[2] = "World Baseball Classic";
+            s_num_leagues = 3;
+            break;
         case SportNHL:
-            s_leagues[0] = "NHL"; s_leagues[1] = "College Hockey"; s_num_leagues = 2; break;
+            s_leagues[0] = "NHL";
+            s_leagues[1] = "College Hockey";
+            s_num_leagues = 2;
+            break;
         case SportNBA:
-            s_leagues[0] = "NBA"; s_leagues[1] = "WNBA"; s_leagues[2] = "College Basketball"; s_leagues[3] = "FIBA"; s_num_leagues = 4; break;
+            s_leagues[0] = "NBA";
+            s_leagues[1] = "WNBA";
+            s_leagues[2] = "College Basketball";
+            s_leagues[3] = "Women's College";
+            s_leagues[4] = "FIBA";
+            s_num_leagues = 5;
+            break;
         case SportMLS:
-            s_leagues[0] = "MLS"; s_leagues[1] = "Premier League"; s_leagues[2] = "La Liga"; s_leagues[3] = "Bundesliga"; s_leagues[4] = "Serie A"; s_leagues[5] = "Liga MX"; s_leagues[6] = "Champions League"; s_leagues[7] = "World Cup"; s_leagues[8] = "Women's World Cup"; s_num_leagues = 9; break;
+            s_leagues[0] = "MLS";
+            s_leagues[1] = "Premier League";
+            s_leagues[2] = "La Liga";
+            s_leagues[3] = "Bundesliga";
+            s_leagues[4] = "Serie A";
+            s_leagues[5] = "Liga MX";
+            s_leagues[6] = "Champions League";
+            s_leagues[7] = "World Cup";
+            s_leagues[8] = "Women's World Cup";
+            s_num_leagues = 9;
+            break;
         case SportRugby:
-            s_leagues[0] = "NRL"; s_leagues[1] = "Six Nations"; s_leagues[2] = "Rugby World Cup"; s_num_leagues = 3; break;
+            s_leagues[0] = "NRL";
+            s_leagues[1] = "Six Nations";
+            s_leagues[2] = "Rugby World Cup";
+            s_num_leagues = 3;
+            break;
         case SportCricket:
-            s_leagues[0] = "International"; s_leagues[1] = "Int'l Past"; s_leagues[2] = "IPL"; s_leagues[3] = "IPL Past"; s_leagues[4] = "Major League Cricket"; s_leagues[5] = "MLC Past"; s_num_leagues = 6; break;
+            s_leagues[0] = "International";
+            s_leagues[1] = "Int'l Past";
+            s_leagues[2] = "IPL";
+            s_leagues[3] = "IPL Past";
+            s_leagues[4] = "Major League Cricket";
+            s_leagues[5] = "MLC Past";
+            s_num_leagues = 6;
+            break;
         case SportTennis:
-            s_leagues[0] = "ATP"; s_leagues[1] = "ATP Past"; s_leagues[2] = "WTA"; s_leagues[3] = "WTA Past"; s_num_leagues = 4; break;
+            s_leagues[0] = "ATP";
+            s_leagues[1] = "ATP Past";
+            s_leagues[2] = "WTA";
+            s_leagues[3] = "WTA Past";
+            s_num_leagues = 4;
+            break;
         case SportAFL:
-            s_leagues[0] = "AFL"; s_num_leagues = 1; break;
+            s_leagues[0] = "AFL";
+            s_num_leagues = 1;
+            break;
         case SportMMA:
-            s_leagues[0] = "UFC"; s_num_leagues = 1; break;
+            s_leagues[0] = "UFC";
+            s_num_leagues = 1;
+            break;
         default:
-            s_leagues[0] = "All Games"; s_num_leagues = 1; break;
+            s_leagues[0] = "All Games";
+            s_num_leagues = 1;
+            break;
     }
 }
 
@@ -77,10 +127,12 @@ static void menu_draw_header_callback(GContext* ctx, const Layer *cell_layer, ui
 }
 
 static void menu_draw_row_callback(GContext* ctx, const Layer *cell_layer, MenuIndex *cell_index, void *data) {
+    if (cell_index->row >= s_num_leagues) return;
     menu_cell_basic_draw(ctx, cell_layer, s_leagues[cell_index->row], "View Games", NULL);
 }
 
 static void menu_select_callback(MenuLayer *menu_layer, MenuIndex *cell_index, void *data) {
+    if (cell_index->row >= s_num_leagues) return;
     show_games_menu(s_current_sport, cell_index->row);
 }
 
@@ -88,18 +140,21 @@ static void build_menu_layer(Window *window) {
     if (s_menu_layer) return;
 
     Layer *window_layer = window_get_root_layer(window);
-    GRect bounds = layer_get_frame(window_layer);
+    if (!window_layer) return;
+
+    GRect bounds = layer_get_bounds(window_layer);
     
     #if defined(PBL_ROUND)
     bounds.origin.y += STATUS_BAR_LAYER_HEIGHT;
     bounds.size.h -= STATUS_BAR_LAYER_HEIGHT;
     #else
-    int header_height = layer_get_bounds((Layer*)s_header).size.h;
+    int header_height = s_header ? layer_get_bounds((Layer*)s_header).size.h : 0;
     bounds.origin.y += header_height + 4;
     bounds.size.h -= header_height + 4; 
     #endif
 
     s_menu_layer = menu_layer_create(bounds);
+    if (!s_menu_layer) return;
 
     #if defined(PBL_ROUND)
     menu_layer_set_center_focused(s_menu_layer, false);
@@ -134,12 +189,15 @@ static void destroy_menu_layer(void) {
 
 static void initialise_ui(Window *window) {
     Layer *window_layer = window_get_root_layer(window);
+    if (!window_layer) return;
     
     s_status_bar = status_bar_layer_create();
-    status_bar_layer_set_colors(s_status_bar, GColorDukeBlue, GColorWhite);
+    if (s_status_bar) {
+        status_bar_layer_set_colors(s_status_bar, GColorDukeBlue, GColorWhite);
+    }
 
     #if !defined(PBL_ROUND)
-    GRect bounds = layer_get_frame(window_layer);
+    GRect bounds = layer_get_bounds(window_layer);
     s_header_data.title = sport_get_name(s_current_sport);
     s_header_data.info = NULL;
     s_header_data.under_status_bar = true;
@@ -151,10 +209,14 @@ static void initialise_ui(Window *window) {
     #endif
 
     s_header = create_header_layer(bounds, s_header_data);
-    layer_add_child(window_layer, (Layer*)s_header);
+    if (s_header) {
+        layer_add_child(window_layer, (Layer*)s_header);
+    }
     #endif
     
-    layer_add_child(window_layer, status_bar_layer_get_layer(s_status_bar));
+    if (s_status_bar) {
+        layer_add_child(window_layer, status_bar_layer_get_layer(s_status_bar));
+    }
 
     build_menu_layer(window);
 }
@@ -189,6 +251,8 @@ void show_league_menu(Sport sport) {
     
     if (!s_window) {
         s_window = window_create();
+        if (!s_window) return;
+
         WindowHandlers handlers = {0};
         handlers.load = initialise_ui;
         handlers.unload = destroy_ui;

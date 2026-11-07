@@ -235,7 +235,8 @@ const LEAGUE_OFFSETS = {
     "AFL": 31000000,
     "UFC": 32000000,
 
-    "Women's WC": 33000000
+    "Women's WC": 33000000,
+    "NCAAW": 34000000
 };
 
 
@@ -1051,6 +1052,11 @@ function getEndpointsForSport(sport) {
                 {
                     url: base + '/basketball/mens-college-basketball',
                     league: "NCAAM",
+                    params: "groups=50"
+                },
+                {
+                    url: base + '/basketball/womens-college-basketball',
+                    league: "NCAAW",
                     params: "groups=50"
                 },
                 {
